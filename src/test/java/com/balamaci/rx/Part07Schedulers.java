@@ -57,7 +57,7 @@ public class Part07Schedulers implements BaseTestObservables {
                     return newValue;
                 });
 
-        subscribeWithLog(observable, latch);
+        subscribeWithLogWaiting(observable);
         Helpers.wait(latch);
     }
 

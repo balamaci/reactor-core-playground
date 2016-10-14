@@ -2,13 +2,17 @@ package com.balamaci.rx;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import reactor.core.publisher.Flux;
 import rx.Observable;
 import rx.functions.Action0;
 import rx.functions.Action1;
 import rx.observables.BlockingObservable;
 
+import java.time.Duration;
+import java.time.temporal.TemporalUnit;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 /**
  * @author sbalamaci
@@ -33,21 +37,23 @@ public interface BaseTestObservables {
         return observable;
     }
 
-    default void subscribeWithLog(Observable observable) {
-        observable.subscribe(
+    default void subscribeWithLog(Flux flux) {
+        flux.subscribe(
                 val -> log.info("Subscriber received: {}", val),
-                logError(),
-                logComplete()
+                logErrorConsumer(),
+                logCompleteMethod()
         );
     }
 
-    default void subscribeWithLog(Observable observable, CountDownLatch latch) {
-        observable.subscribe(
+    default void subscribeWithLogWaiting(Flux flux) {
+        CountDownLatch latch = new CountDownLatch(1);
+        flux.subscribe(
                 val -> log.info("Subscriber received: {}", val),
-                logError(latch),
-                logComplete(latch)
+                logErrorConsumer(latch),
+                logCompleteMethod(latch)
         );
     }
+
 
     default void subscribeWithLog(BlockingObservable observable) {
         observable.subscribe(
@@ -57,24 +63,24 @@ public interface BaseTestObservables {
         );
     }
 
-    default  <T> Observable<T> periodicEmitter(T t1, T t2, T t3, int interval, TimeUnit unit) {
+    default  <T> Flux<T> periodicEmitter(T t1, T t2, T t3, int interval, TemporalUnit unit) {
         return periodicEmitter(t1, t2, t3, interval, unit, interval);
     }
 
-    default  <T> Observable<T> periodicEmitter(T t1, T t2, T t3, int interval,
-                                               TimeUnit unit, int initialDelay) {
-        Observable<T> itemsStream = Observable.just(t1, t2, t3);
-        Observable<Long> timer = Observable.interval(initialDelay, interval, unit);
+    default  <T> Flux<T> periodicEmitter(T t1, T t2, T t3, int interval,
+                                         TemporalUnit unit, int initialDelay) {
+        Flux<T> itemsStream = Flux.just(t1, t2, t3);
+        Flux<Long> timer = Flux.interval(Duration.of(initialDelay, unit), Duration.of(interval, unit));
 
-        return Observable.zip(itemsStream, timer, (key, val) -> key);
+        return Flux.zip(itemsStream, timer, (key, val) -> key);
     }
 
-    default  <T> Observable<T> periodicEmitter(T[] items, int interval,
-                                               TimeUnit unit, int initialDelay) {
-        Observable<T> itemsStream = Observable.from(items);
-        Observable<Long> timer = Observable.interval(initialDelay, interval, unit);
+    default  <T> Flux<T> periodicEmitter(T[] items, int interval,
+                                         TemporalUnit unit, int initialDelay) {
+        Flux<T> itemsStream = Flux.fromArray(items);
+        Flux<Long> timer = Flux.interval(Duration.of(initialDelay, unit), Duration.of(interval, unit));
 
-        return Observable.zip(itemsStream, timer, (key, val) -> key);
+        return Flux.zip(itemsStream, timer, (key, val) -> key);
     }
 
     default  <T> Observable<T> periodicEmitter(T[] items, int interval,
@@ -95,6 +101,17 @@ public interface BaseTestObservables {
         return err -> log.error("Subscriber received error '{}'", err.getMessage());
     }
 
+    default Consumer<Throwable> logErrorConsumer() {
+        return err -> log.error("Subscriber received error '{}'", err.getMessage());
+    }
+
+    default Consumer<Throwable> logErrorConsumer(CountDownLatch latch) {
+        return err -> {
+            log.error("Subscriber received error '{}'", err.getMessage());
+            latch.countDown();
+        };
+    }
+
     default Action1<Throwable> logError(CountDownLatch latch) {
         return err -> {
             log.error("Subscriber received error '{}'", err.getMessage());
@@ -107,6 +124,17 @@ public interface BaseTestObservables {
     }
 
     default Action0 logComplete(CountDownLatch latch) {
+        return () -> {
+            log.info("Subscriber got Completed event");
+            latch.countDown();
+        };
+    }
+
+    default Runnable logCompleteMethod() {
+        return () -> log.info("Subscriber got Completed event");
+    }
+
+    default Runnable logCompleteMethod(CountDownLatch latch) {
         return () -> {
             log.info("Subscriber got Completed event");
             latch.countDown();

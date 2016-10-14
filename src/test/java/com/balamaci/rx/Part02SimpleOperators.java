@@ -1,14 +1,15 @@
 package com.balamaci.rx;
 
+import com.balamaci.rx.util.Helpers;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
-import rx.Observable;
+import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.CountDownLatch;
 
 /**
  * @author sbalamaci
@@ -30,27 +31,31 @@ public class Part02SimpleOperators implements BaseTestObservables {
      */
     @Test
     public void delayOperator() {
+        CountDownLatch latch = new CountDownLatch(1);
+
         Flux.range(0, 5)
-                .delay(Duration.of(5, ChronoUnit.SECONDS))
-                .toBlocking() //waits on the main thread for the Scheduler thread to finish.
+                .delay(Duration.of(2, ChronoUnit.SECONDS))
                 .subscribe(
                         tick -> log.info("Tick {}", tick),
                         (ex) -> log.info("Error emitted"),
                         () -> log.info("Completed"));
 
-//        Helpers.sleepMillis(10000);
+        Helpers.wait(latch);
     }
 
 
     @Test
     public void delayOperatorWithVariableDelay() {
-        Observable.range(0, 5)
-                .delay(val -> Observable.timer(val * 10, TimeUnit.SECONDS))
-                .toBlocking()
+        CountDownLatch latch = new CountDownLatch(1);
+
+        Flux.range(0, 5)
+                .concatMap(val -> Mono.just(val).delaySubscription(Duration.of(val * 2, ChronoUnit.SECONDS)))
                 .subscribe(
                         tick -> log.info("Tick {}", tick),
                         (ex) -> log.info("Error emitted"),
                         () -> log.info("Completed"));
+
+        Helpers.wait(latch);
     }
 
     /**
@@ -59,23 +64,9 @@ public class Part02SimpleOperators implements BaseTestObservables {
     @Test
     public void intervalOperator() {
         log.info("Starting");
-        Observable.interval(1, TimeUnit.SECONDS)
-                .take(5)
-                .toBlocking()
-                .subscribe(
-                        tick -> log.info("Tick {}", tick),
-                        (ex) -> log.info("Error emitted"),
-                        () -> log.info("Completed"));
-    }
 
-    /**
-     * Timer operator waits for a specific amount of time before it emits an event and then completes
-     */
-    @Test
-    public void timerOperator() {
-        log.info("Starting");
-        Observable.timer(5, TimeUnit.SECONDS)
-                .toBlocking()
+        Flux.interval(Duration.of(1, ChronoUnit.SECONDS))
+                .take(5)
                 .subscribe(
                         tick -> log.info("Tick {}", tick),
                         (ex) -> log.info("Error emitted"),

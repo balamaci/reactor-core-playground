@@ -3,12 +3,15 @@ package com.balamaci.rx;
 import com.balamaci.rx.util.Helpers;
 import javafx.util.Pair;
 import org.junit.Test;
-import rx.Observable;
-import rx.observables.BlockingObservable;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+import reactor.util.function.Tuple2;
+import reactor.util.function.Tuples;
 
+import java.time.Duration;
+import java.time.temporal.ChronoUnit;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Operators for working with multiple streams
@@ -31,18 +34,19 @@ public class Part03MergingStreams implements BaseTestObservables {
     @Test
     public void zipUsedForTakingTheResultOfCombinedAsyncOperations() {
         CountDownLatch latch = new CountDownLatch(1);
-
-        Observable<Boolean> isUserBlockedStream = Observable.from(CompletableFuture.supplyAsync(() -> {
+        /* This stream completes faster */
+        Mono<Boolean> isUserBlockedStream = Mono.fromFuture(CompletableFuture.supplyAsync(() -> {
             Helpers.sleepMillis(200);
             return Boolean.FALSE;
         }));
-        Observable<Integer> userCreditScoreStream = Observable.from(CompletableFuture.supplyAsync(() -> {
+        Mono<String> userCreditScoreStream = Mono.fromFuture(CompletableFuture.supplyAsync(() -> {
             Helpers.sleepMillis(2300);
-            return 200;
+            return "GOOD";
         }));
 
-        Observable<Pair<Boolean, Integer>> userCheckStream = Observable.zip(isUserBlockedStream, userCreditScoreStream,
-                (blocked, creditScore) -> new Pair<Boolean, Integer>(blocked, creditScore));
+        /* zip waits for the slower stream to complete and invokes the zipping functions on both results */
+        Flux<Tuple2<Boolean, String>> userCheckStream = Flux.zip(isUserBlockedStream, userCreditScoreStream,
+                (blocked, creditScore) -> Tuples.of(blocked, creditScore));
         subscribeWithLog(userCheckStream, latch);
 
         Helpers.wait(latch);
@@ -57,10 +61,10 @@ public class Part03MergingStreams implements BaseTestObservables {
     public void zipUsedToSlowDownAnotherStream() {
         CountDownLatch latch = new CountDownLatch(1);
 
-        Observable<String> colors = Observable.just("red", "green", "blue");
-        Observable<Long> timer = Observable.interval(2, TimeUnit.SECONDS);
+        Flux<String> colors = Flux.just("red", "green", "blue");
+        Flux<Long> timer = Flux.interval(Duration.of(2, ChronoUnit.SECONDS));
 
-        Observable<String> periodicEmitter = Observable.zip(colors, timer, (key, val) -> key);
+        Flux<String> periodicEmitter = Flux.zip(colors, timer, (key, val) -> key);
         subscribeWithLog(periodicEmitter, latch);
 
         Helpers.wait(latch);
@@ -78,13 +82,13 @@ public class Part03MergingStreams implements BaseTestObservables {
     public void mergeOperator() {
         log.info("Starting");
 
-        Observable<String> colors = periodicEmitter("red", "green", "blue", 2, TimeUnit.SECONDS);
+        Flux<String> colors = periodicEmitter("red", "green", "blue", 2, ChronoUnit.SECONDS);
 
-        Observable<Long> numbers = Observable.interval(1, TimeUnit.SECONDS)
+        Flux<Long> numbers = Flux.interval(Duration.of(1, ChronoUnit.SECONDS))
                 .take(5);
 
-        BlockingObservable observable = Observable.merge(colors, numbers).toBlocking();
-        subscribeWithLog(observable);
+        Flux flux = Flux.merge(colors, numbers);
+        subscribeWithLog(flux);
     }
 
     /**
@@ -98,13 +102,13 @@ public class Part03MergingStreams implements BaseTestObservables {
     @Test
     public void concatStreams() {
         log.info("Starting");
-        Observable<String> colors = periodicEmitter("red", "green", "blue", 2, TimeUnit.SECONDS);
+        Flux<String> colors = periodicEmitter("red", "green", "blue", 2, ChronoUnit.SECONDS);
 
-        Observable<Long> numbers = Observable.interval(1, TimeUnit.SECONDS)
+        Flux<Long> numbers = Flux.interval(Duration.of(1, ChronoUnit.SECONDS))
                 .take(4);
 
-        BlockingObservable observable = Observable.concat(colors, numbers).toBlocking();
-        subscribeWithLog(observable);
+        Flux flux = Flux.concat(colors, numbers);
+        subscribeWithLog(flux);
     }
 
     /**
@@ -117,11 +121,12 @@ public class Part03MergingStreams implements BaseTestObservables {
 
         log.info("Starting");
 
-        Observable<String> colors = periodicEmitter("red", "green", "blue", 3, TimeUnit.SECONDS);
-        Observable<Long> numbers = Observable.interval(1, TimeUnit.SECONDS)
-                .take(4);
-        Observable observable = Observable.combineLatest(colors, numbers, Pair::new);
-        subscribeWithLog(observable, latch);
+        Flux<String> colors = periodicEmitter("red", "green", "blue", 3, ChronoUnit.SECONDS);
+        Flux<Long> numbers = Flux.interval(Duration.of(1, ChronoUnit.SECONDS))
+                                    .take(4);
+
+        Flux flux = Flux.combineLatest(colors, numbers, Pair::new);
+        subscribeWithLog(flux, latch);
 
         Helpers.wait(latch);
     }

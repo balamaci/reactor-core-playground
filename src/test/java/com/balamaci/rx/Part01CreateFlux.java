@@ -54,7 +54,7 @@ public class Part01CreateFlux implements BaseTestObservables {
                       return "red";
                 });
 
-        Flux<String> observable = Mono.fromFuture(completableFuture);
+        Mono<String> observable = Mono.fromFuture(completableFuture);
         observable.subscribe(val -> log.info("Subscriber received: {}", val));
 
 

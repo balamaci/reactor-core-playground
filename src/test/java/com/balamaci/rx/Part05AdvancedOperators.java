@@ -2,12 +2,13 @@ package com.balamaci.rx;
 
 import javafx.util.Pair;
 import org.junit.Test;
+import reactor.core.publisher.Flux;
 import rx.Observable;
-import rx.observables.BlockingObservable;
 import rx.observables.GroupedObservable;
 
+import java.time.Duration;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 /**
  * @author sbalamaci
@@ -16,35 +17,35 @@ public class Part05AdvancedOperators implements BaseTestObservables {
 
     @Test
     public void buffer() {
-        Observable<Long> numbers = Observable.interval(1, TimeUnit.SECONDS);
+        Flux<Long> numbers = Flux.interval(Duration.of(1, ChronoUnit.SECONDS));
 
-        BlockingObservable<List<Long>> delayedNumbersWindow = numbers
-                .buffer(5).toBlocking();
+        Flux<List<Long>> delayedNumbersWindow = numbers.buffer(5);
 
         subscribeWithLog(delayedNumbersWindow);
     }
 
     @Test
     public void simpleWindow() {
-        Observable<Long> numbers = Observable.interval(1, TimeUnit.SECONDS);
+        Flux<Long> numbers = Flux.interval(Duration.of(1, ChronoUnit.SECONDS));
 
-        BlockingObservable<Long> delayedNumbersWindow = numbers
-                .window(5)
-                .flatMap(window -> window.doOnCompleted(() -> log.info("Window completed")))
-                .toBlocking();
+        Flux<Long> delayedNumbersWindow = numbers
+                .window(5) //size of events
+                .flatMap(window -> window.doOnComplete(() -> log.info("Window completed")));
 
-        subscribeWithLog(delayedNumbersWindow);
+        subscribeWithLogWaiting(delayedNumbersWindow);
     }
 
 
     @Test
     public void window() {
-        Observable<Long> numbers = Observable.interval(1, TimeUnit.SECONDS);
+        Flux<Long> numbers = Flux.interval(Duration.of(1, ChronoUnit.SECONDS));
 
-        BlockingObservable<Long> delayedNumbersWindow = numbers
-                .window(10, 5, TimeUnit.SECONDS)
-                .flatMap(window -> window.doOnCompleted(() -> log.info("Window completed")))
-                .toBlocking();
+        Duration windowSpan = Duration.of(10, ChronoUnit.SECONDS);
+        Duration windowTimespan = Duration.of(10, ChronoUnit.SECONDS);
+
+        Flux<Long> delayedNumbersWindow = numbers
+                            .window(windowSpan, windowTimespan)
+                            .flatMap(window -> window.doOnComplete(() -> log.info("Window completed")));
 
         subscribeWithLog(delayedNumbersWindow);
     }
