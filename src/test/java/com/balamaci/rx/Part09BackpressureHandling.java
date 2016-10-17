@@ -1,21 +1,12 @@
 package com.balamaci.rx;
 
-import com.balamaci.rx.util.Helpers;
-import org.junit.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import rx.Observable;
-import rx.schedulers.Schedulers;
-import rx.subjects.PublishSubject;
-
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-
 /**
  * @author sbalamaci
  */
 public class Part09BackpressureHandling implements BaseTestObservables {
 
+
+/*
     private static final Logger log = LoggerFactory.getLogger(Part09BackpressureHandling.class);
 
     @Test
@@ -31,9 +22,11 @@ public class Part09BackpressureHandling implements BaseTestObservables {
         Helpers.wait(latch);
     }
 
-    /**
+    */
+/**
      * Not only a slow subscriber triggers backpressure, but also a slow operator
-     */
+     *//*
+
     @Test
     public void throwingBackpressureNotSupportedSlowOperator() {
         CountDownLatch latch = new CountDownLatch(1);
@@ -52,9 +45,11 @@ public class Part09BackpressureHandling implements BaseTestObservables {
         Helpers.wait(latch);
     }
 
-    /**
+    */
+/**
      * Subjects are also not backpressure aware
-     */
+     *//*
+
     @Test
     public void throwingBackpressureNotSupportedSubject() {
         CountDownLatch latch = new CountDownLatch(1);
@@ -73,9 +68,11 @@ public class Part09BackpressureHandling implements BaseTestObservables {
         Helpers.wait(latch);
     }
 
-    /**
+    */
+/**
      * Zipping a slow stream with a faster one also can cause a backpressure problem
-     */
+     *//*
+
     @Test
     public void zipOperatorHasALimit() {
         CountDownLatch latch = new CountDownLatch(1);
@@ -149,5 +146,6 @@ public class Part09BackpressureHandling implements BaseTestObservables {
                     latch.countDown();
                 });
     }
+*/
 
 }

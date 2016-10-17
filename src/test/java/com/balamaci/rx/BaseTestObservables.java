@@ -1,14 +1,13 @@
 package com.balamaci.rx;
 
+import com.balamaci.rx.util.Helpers;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
 import rx.Observable;
-import rx.functions.Action0;
-import rx.functions.Action1;
-import rx.observables.BlockingObservable;
 
 import java.time.Duration;
+import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalUnit;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -21,20 +20,20 @@ public interface BaseTestObservables {
 
     Logger log = LoggerFactory.getLogger(BaseTestObservables.class);
 
-    default Observable<Integer> simpleObservable() {
-        Observable<Integer> observable = Observable.create(subscriber -> {
+    default Flux<Integer> simpleObservable() {
+        Flux<Integer> flux = Flux.create(subscriber -> {
             log.info("Started emitting");
 
             log.info("Emitting 1st");
-            subscriber.onNext(1);
+            subscriber.next(1);
 
             log.info("Emitting 2nd");
-            subscriber.onNext(2);
+            subscriber.next(2);
 
-            subscriber.onCompleted();
+            subscriber.complete();
         });
 
-        return observable;
+        return flux;
     }
 
     default void subscribeWithLog(Flux flux) {
@@ -52,16 +51,9 @@ public interface BaseTestObservables {
                 logErrorConsumer(latch),
                 logCompleteMethod(latch)
         );
+        Helpers.wait(latch);
     }
 
-
-    default void subscribeWithLog(BlockingObservable observable) {
-        observable.subscribe(
-                val -> log.info("Subscriber received: {}", val),
-                logError(),
-                logComplete()
-        );
-    }
 
     default  <T> Flux<T> periodicEmitter(T t1, T t2, T t3, int interval, TemporalUnit unit) {
         return periodicEmitter(t1, t2, t3, interval, unit, interval);
@@ -88,17 +80,13 @@ public interface BaseTestObservables {
         return periodicEmitter(items, interval, unit);
     }
 
-    default  Observable<String> delayedByLengthEmitter(TimeUnit unit, String...items) {
-        Observable<String> itemsStream = Observable.from(items);
+    default  Flux<String> delayedByLengthEmitter(ChronoUnit unit, String...items) {
+        Flux<String> itemsStream = Flux.fromArray(items);
 
-        return itemsStream.concatMap(item -> Observable.just(item)
-                        .doOnNext(val -> log.info("Received {} delaying for {} ", val, val.length()))
-                        .delay(item.length(), unit)
-                );
-    }
-
-    default Action1<Throwable> logError() {
-        return err -> log.error("Subscriber received error '{}'", err.getMessage());
+        return itemsStream.concatMap(item -> Flux.just(item)
+                                              .doOnNext(val -> log.info("Received {} delaying for {} ", val, val.length()))
+                                              .delay(Duration.of(item.length(), unit))
+                            );
     }
 
     default Consumer<Throwable> logErrorConsumer() {
@@ -112,23 +100,6 @@ public interface BaseTestObservables {
         };
     }
 
-    default Action1<Throwable> logError(CountDownLatch latch) {
-        return err -> {
-            log.error("Subscriber received error '{}'", err.getMessage());
-            latch.countDown();
-        };
-    }
-
-    default Action0 logComplete() {
-        return () -> log.info("Subscriber got Completed event");
-    }
-
-    default Action0 logComplete(CountDownLatch latch) {
-        return () -> {
-            log.info("Subscriber got Completed event");
-            latch.countDown();
-        };
-    }
 
     default Runnable logCompleteMethod() {
         return () -> log.info("Subscriber got Completed event");

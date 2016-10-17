@@ -2,10 +2,8 @@ package com.balamaci.rx;
 
 import com.balamaci.rx.util.Helpers;
 import org.junit.Test;
-import rx.Observable;
-import rx.schedulers.Schedulers;
-
-import java.util.concurrent.CountDownLatch;
+import reactor.core.publisher.Flux;
+import reactor.core.scheduler.Schedulers;
 
 /**
  * RxJava provides some high level concepts for concurrent execution, like ExecutorService we're not dealing
@@ -39,26 +37,23 @@ public class Part07Schedulers implements BaseTestObservables {
     public void testSubscribeOn() {
         log.info("Starting");
 
-        CountDownLatch latch = new CountDownLatch(1);
-
-        Observable<Integer> observable = Observable.create(subscriber -> { //code that will execute inside the IO ThreadPool
+        Flux<Integer> flux = Flux.create(subscriber -> { //code that will execute inside the IO ThreadPool
             log.info("Starting slow network op");
             Helpers.sleepMillis(2000);
 
             log.info("Emitting 1st");
-            subscriber.onNext(1);
+            subscriber.next(1);
 
-            subscriber.onCompleted();
+            subscriber.complete();
         });
-        observable = observable.subscribeOn(Schedulers.io()) //Specify execution on the IO Scheduler
+        flux = flux.subscribeOn(Schedulers.elastic()) //Specify execution on the IO Scheduler
                 .map(val -> {
                     int newValue = val * 2;
                     log.info("Mapping new val {}", newValue);
                     return newValue;
                 });
 
-        subscribeWithLogWaiting(observable);
-        Helpers.wait(latch);
+        subscribeWithLogWaiting(flux);
     }
 
 
@@ -71,20 +66,17 @@ public class Part07Schedulers implements BaseTestObservables {
     public void testObserveOn() {
         log.info("Starting");
 
-        CountDownLatch latch = new CountDownLatch(1);
-
-        Observable<Integer> observable = simpleObservable()
-                .subscribeOn(Schedulers.io())
-                .observeOn(Schedulers.computation())
+        Flux<Integer> observable = simpleObservable()
+                .subscribeOn(Schedulers.newElastic("elastic-subscribe"))
+                .publishOn(Schedulers.newElastic("elastic-publish"))
                 .map(val -> {
                     int newValue = val * 2;
                     log.info("Mapping new val {}", newValue);
                     return newValue;
                 })
-                .observeOn(Schedulers.newThread());
+                .publishOn(Schedulers.newElastic("elastic-2nd-publish"));
 
-        subscribeWithLog(observable, latch);
-        Helpers.wait(latch);
+        subscribeWithLogWaiting(observable);
     }
 
     /**
@@ -95,19 +87,16 @@ public class Part07Schedulers implements BaseTestObservables {
     public void multipleCallsToSubscribeOn() {
         log.info("Starting");
 
-        CountDownLatch latch = new CountDownLatch(1);
-
-        Observable<Integer> observable = simpleObservable()
-                .subscribeOn(Schedulers.io())
-                .subscribeOn(Schedulers.computation())
+        Flux<Integer> observable = simpleObservable()
+                .subscribeOn(Schedulers.newElastic("subscribe"))
+                .subscribeOn(Schedulers.newElastic("2nd-subscribe"))
                 .map(val -> {
                     int newValue = val * 2;
                     log.info("Mapping new val {}", newValue);
                     return newValue;
                 });
 
-        subscribeWithLog(observable, latch);
-        Helpers.wait(latch);
+        subscribeWithLogWaiting(observable);
     }
 
 }

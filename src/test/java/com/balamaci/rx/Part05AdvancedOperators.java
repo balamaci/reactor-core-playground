@@ -3,8 +3,8 @@ package com.balamaci.rx;
 import javafx.util.Pair;
 import org.junit.Test;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.GroupedFlux;
 import rx.Observable;
-import rx.observables.GroupedObservable;
 
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
@@ -24,47 +24,77 @@ public class Part05AdvancedOperators implements BaseTestObservables {
         subscribeWithLog(delayedNumbersWindow);
     }
 
+    /**
+     * Split the stream into multiple windows.
+     * The window size can be specified as a number of events
+     */
     @Test
     public void simpleWindow() {
         Flux<Long> numbers = Flux.interval(Duration.of(1, ChronoUnit.SECONDS));
 
         Flux<Long> delayedNumbersWindow = numbers
                 .window(5) //size of events
-                .flatMap(window -> window.doOnComplete(() -> log.info("Window completed")));
+                .flatMap(window -> window.doOnComplete(() -> log.info("Window completed"))
+                                         .doOnSubscribe((sub) -> log.info("Window started"))
+                        );
 
         subscribeWithLogWaiting(delayedNumbersWindow);
     }
 
 
+    /**
+     * Split the stream into multiple windows
+     * When the period to start the windows(timeshit) is bigger than the window timespan, some events will be lost
+     */
     @Test
-    public void window() {
+    public void windowWithLoosingEvents() {
         Flux<Long> numbers = Flux.interval(Duration.of(1, ChronoUnit.SECONDS));
 
-        Duration windowSpan = Duration.of(10, ChronoUnit.SECONDS);
-        Duration windowTimespan = Duration.of(10, ChronoUnit.SECONDS);
+        Duration timespan = Duration.of(5, ChronoUnit.SECONDS);
+        Duration timeshift = Duration.of(10, ChronoUnit.SECONDS);
 
-        Flux<Long> delayedNumbersWindow = numbers
-                            .window(windowSpan, windowTimespan)
-                            .flatMap(window -> window.doOnComplete(() -> log.info("Window completed")));
-
-        subscribeWithLog(delayedNumbersWindow);
+        subscribeTimeWindow(numbers, timespan, timeshift);
     }
+
+
+    @Test
+    public void windowWithDuplicateEvents() {
+        Flux<Long> numbers = Flux.interval(Duration.of(1, ChronoUnit.SECONDS));
+
+        Duration timespan = Duration.of(9, ChronoUnit.SECONDS);
+        Duration timeshift = Duration.of(3, ChronoUnit.SECONDS);
+
+        subscribeTimeWindow(numbers, timespan, timeshift);
+    }
+
+    private void subscribeTimeWindow(Flux<Long> numbersStream, Duration timespan, Duration timeshift) {
+        Flux<Long> delayedNumbersWindow = numbersStream
+                .window(timespan, timeshift)
+                .flatMap(window -> window
+                        .doOnComplete(() -> log.info("Window completed"))
+                        .doOnSubscribe((sub) -> log.info("Window started"))
+                );
+
+        subscribeWithLogWaiting(delayedNumbersWindow);
+    }
+
+
 
     @Test
     public void groupBy() {
-        Observable<String> colors = Observable.from(new String[]{"red", "green", "blue",
+        Flux<String> colors = Flux.fromArray(new String[]{"red", "green", "blue",
                 "red", "yellow", "green", "green"});
 
-        Observable<GroupedObservable<String, String>> groupedColorsStream = colors
+        Flux<GroupedFlux<String, String>> groupedColorsStream = colors
                 .groupBy(val -> val);
 
-        Observable<Pair<String, Integer>> colorCountStream = groupedColorsStream
+        Flux<Pair<String, Long>> colorCountStream = groupedColorsStream
                 .flatMap(groupedColor -> groupedColor
                                             .count()
-                                            .map(count -> new Pair<>(groupedColor.getKey(), count))
+                                            .map(count -> new Pair<>(groupedColor.key(), count))
                 );
 
-        subscribeWithLog(colorCountStream.toBlocking());
+        subscribeWithLogWaiting(colorCountStream);
     }
 
     @Test

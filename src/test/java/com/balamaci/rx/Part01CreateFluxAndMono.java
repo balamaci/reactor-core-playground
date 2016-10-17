@@ -7,16 +7,17 @@ import org.slf4j.LoggerFactory;
 import reactor.core.Cancellation;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import rx.Observable;
 
 import java.util.concurrent.CompletableFuture;
 
 /**
+ * Both Flux and Mono are extensions of Publisher
+ *
  * @author sbalamaci
  */
-public class Part01CreateFlux implements BaseTestObservables {
+public class Part01CreateFluxAndMono implements BaseTestObservables {
 
-    private static final Logger log = LoggerFactory.getLogger(Part01CreateFlux.class);
+    private static final Logger log = LoggerFactory.getLogger(Part01CreateFluxAndMono.class);
 
 
     @Test
@@ -44,7 +45,9 @@ public class Part01CreateFlux implements BaseTestObservables {
     }
 
     /**
-     * We can also create an Observable from Future, making easier to switch from legacy code to reactive
+     * We can also create a stream from Future, making easier to switch from legacy code to reactive
+     * Since CompletableFuture can only return a single entity, Mono is the returned type when converting
+     * from a Future
      */
     @Test
     public void fromFuture() {
@@ -54,28 +57,23 @@ public class Part01CreateFlux implements BaseTestObservables {
                       return "red";
                 });
 
-        Mono<String> observable = Mono.fromFuture(completableFuture);
-        observable.subscribe(val -> log.info("Subscriber received: {}", val));
-
-
-        completableFuture = CompletableFuture.completedFuture("green");
-        observable = Mono.fromFuture(completableFuture);
-        observable.subscribe(val -> log.info("Subscriber2 received: {}", val));
+        Mono<String> mono = Mono.fromFuture(completableFuture);
+        mono.subscribe(val -> log.info("Subscriber received: {}", val));
     }
 
 
     /**
-     * Using Observable.create to handle the actual emissions of events with the events like onNext, onCompleted, onError
+     * Using Flux.create to handle the actual emissions of events with the events like onNext, onCompleted, onError
      * <p>
-     * When subscribing to the Observable with observable.subscribe() the lambda code inside create() gets executed.
-     * Observable.subscribe can take 3 handlers for each type of event - onNext, onError and onCompleted
+     * When subscribing to the Flux with flux.subscribe() the lambda code inside create() gets executed.
+     * Flux.subscribe can take 3 handlers for each type of event - onNext, onError and onCompleted
      * <p>
-     * When using Observable.create you need to be aware of <b>Backpressure</b> and that Observables based on 'create' method
+     * When using Flux.create you need to be aware of <b>Backpressure</b> and that Flux based on 'create' method
      * are not Backpressure aware {@see Part07BackpressureHandling}.
      */
     @Test
     public void createSimpleFlux() {
-        Flux<Integer> observable = Flux.create(subscriber -> {
+        Flux<Integer> flux = Flux.create(subscriber -> {
             log.info("Started emitting");
 
             log.info("Emitting 1st");
@@ -88,7 +86,7 @@ public class Part01CreateFlux implements BaseTestObservables {
         });
 
         log.info("Subscribing");
-        Cancellation cancellation = observable.subscribe(
+        Cancellation cancellation = flux.subscribe(
                 val -> log.info("Subscriber received: {}", val),
                 err -> log.error("Subscriber received error", err),
                 () -> log.info("Subscriber got Completed event"));
@@ -96,25 +94,24 @@ public class Part01CreateFlux implements BaseTestObservables {
 
 
     /**
-     * Observable emits an Error event which is a terminal operation and the subscriber is no longer executing
-     * it's onNext callback. We're actually breaking the the Observable contract that we're still emitting events
-     * after onComplete or onError have fired.
+     * Flux emits an Error event which is a terminal operation and the subscriber is no longer executing
+     * it's onNext callback.
      */
     @Test
-    public void createSimpleObservableThatEmitsError() {
-        Observable<Integer> observable = Observable.create(subscriber -> {
+    public void createSimpleFluxThatEmitsError() {
+        Flux<Integer> flux = Flux.create(subscriber -> {
             log.info("Started emitting");
 
             log.info("Emitting 1st");
-            subscriber.onNext(1);
+            subscriber.next(1);
 
-            subscriber.onError(new RuntimeException("Test exception"));
+            subscriber.error(new RuntimeException("Test exception"));
 
             log.info("Emitting 2nd");
-            subscriber.onNext(2);
+            subscriber.next(2);
         });
 
-        observable.subscribe(
+        Cancellation cancellation = flux.subscribe(
                 val -> log.info("Subscriber received: {}", val),
                 err -> log.error("Subscriber received error", err),
                 () -> log.info("Subscriber got Completed event")
@@ -122,13 +119,13 @@ public class Part01CreateFlux implements BaseTestObservables {
     }
 
     /**
-     * Observables are lazy meaning that the code inside create() doesn't get executed without subscribing to the Observable
-     * So event if we sleep for a long time inside create() method(to simulate a costly operation),
+     * Flux and Mono are lazy, meaning that the code inside create() doesn't get executed without subscribing to the Flux
+     * So even if we sleep for a long time inside create() method(to simulate a costly operation),
      * without subscribing to this Observable the code is not executed and the method returns immediately.
      */
     @Test
-    public void observablesAreLazy() {
-        Flux<Integer> observable = Flux.create(subscriber -> {
+    public void fluxIsLazy() {
+        Flux<Integer> flux = Flux.create(subscriber -> {
             log.info("Started emitting but sleeping for 5 secs"); //this is not executed
             Helpers.sleepMillis(5000);
             subscriber.next(1);
@@ -137,13 +134,13 @@ public class Part01CreateFlux implements BaseTestObservables {
     }
 
     /**
-     * When subscribing to an Observable, the create() method gets executed for each subscription
+     * When subscribing to an Flux, the create() method gets executed for each subscription
      * this means that the events inside create are re-emitted to each subscriber. So every subscriber will get the
      * same events and will not lose any events.
      */
     @Test
     public void multipleSubscriptionsToSameFlux() {
-        Flux<Integer> observable = Flux.create(subscriber -> {
+        Flux<Integer> flux = Flux.create(subscriber -> {
             log.info("Started emitting");
 
             log.info("Emitting 1st event");
@@ -156,12 +153,12 @@ public class Part01CreateFlux implements BaseTestObservables {
         });
 
         log.info("Subscribing 1st subscriber");
-        observable.subscribe(val -> log.info("First Subscriber received: {}", val));
+        flux.subscribe(val -> log.info("First Subscriber received: {}", val));
 
         log.info("=======================");
 
         log.info("Subscribing 2nd subscriber");
-        observable.subscribe(val -> log.info("Second Subscriber received: {}", val));
+        flux.subscribe(val -> log.info("Second Subscriber received: {}", val));
     }
 
     /**

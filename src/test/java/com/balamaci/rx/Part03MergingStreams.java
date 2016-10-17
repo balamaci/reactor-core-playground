@@ -11,7 +11,6 @@ import reactor.util.function.Tuples;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CountDownLatch;
 
 /**
  * Operators for working with multiple streams
@@ -33,23 +32,24 @@ public class Part03MergingStreams implements BaseTestObservables {
      */
     @Test
     public void zipUsedForTakingTheResultOfCombinedAsyncOperations() {
-        CountDownLatch latch = new CountDownLatch(1);
         /* This stream completes faster */
         Mono<Boolean> isUserBlockedStream = Mono.fromFuture(CompletableFuture.supplyAsync(() -> {
             Helpers.sleepMillis(200);
+
+            log.info("Stream1 emitted");
             return Boolean.FALSE;
         }));
         Mono<String> userCreditScoreStream = Mono.fromFuture(CompletableFuture.supplyAsync(() -> {
             Helpers.sleepMillis(2300);
+
+            log.info("Stream2 emitted");
             return "GOOD";
         }));
 
         /* zip waits for the slower stream to complete and invokes the zipping functions on both results */
         Flux<Tuple2<Boolean, String>> userCheckStream = Flux.zip(isUserBlockedStream, userCreditScoreStream,
                 (blocked, creditScore) -> Tuples.of(blocked, creditScore));
-        subscribeWithLog(userCheckStream, latch);
-
-        Helpers.wait(latch);
+        subscribeWithLogWaiting(userCheckStream);
     }
 
     /**
@@ -59,15 +59,11 @@ public class Part03MergingStreams implements BaseTestObservables {
      */
     @Test
     public void zipUsedToSlowDownAnotherStream() {
-        CountDownLatch latch = new CountDownLatch(1);
-
         Flux<String> colors = Flux.just("red", "green", "blue");
         Flux<Long> timer = Flux.interval(Duration.of(2, ChronoUnit.SECONDS));
 
         Flux<String> periodicEmitter = Flux.zip(colors, timer, (key, val) -> key);
-        subscribeWithLog(periodicEmitter, latch);
-
-        Helpers.wait(latch);
+        subscribeWithLog(periodicEmitter);
     }
 
 
@@ -88,7 +84,7 @@ public class Part03MergingStreams implements BaseTestObservables {
                 .take(5);
 
         Flux flux = Flux.merge(colors, numbers);
-        subscribeWithLog(flux);
+        subscribeWithLogWaiting(flux);
     }
 
     /**
@@ -108,7 +104,7 @@ public class Part03MergingStreams implements BaseTestObservables {
                 .take(4);
 
         Flux flux = Flux.concat(colors, numbers);
-        subscribeWithLog(flux);
+        subscribeWithLogWaiting(flux);
     }
 
     /**
@@ -117,8 +113,6 @@ public class Part03MergingStreams implements BaseTestObservables {
      */
     @Test
     public void combineLatest() {
-        CountDownLatch latch = new CountDownLatch(1);
-
         log.info("Starting");
 
         Flux<String> colors = periodicEmitter("red", "green", "blue", 3, ChronoUnit.SECONDS);
@@ -126,8 +120,6 @@ public class Part03MergingStreams implements BaseTestObservables {
                                     .take(4);
 
         Flux flux = Flux.combineLatest(colors, numbers, Pair::new);
-        subscribeWithLog(flux, latch);
-
-        Helpers.wait(latch);
+        subscribeWithLog(flux);
     }
 }

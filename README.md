@@ -2,7 +2,7 @@
 
 ## Contents 
  
-   - [Observable](#observable)
+   - [Flux and Mono](#flux-and-mono)
    - [Simple Operators](#simple-operators)
    - [Merging Streams](#merging-streams)
    - [FlatMap Operator](#flatmap-operator)
@@ -10,18 +10,30 @@
    - [Error Handling](#error-handling)
 
 
-## Flux
-Code is available at [Part01CreateObservable.java](https://github.com/balamaci/rxjava-playground/blob/master/src/test/java/com/balamaci/rx/Part01CreateObservable.java)
+## Flux and Mono
+Code is available at [Part01CreateFluxAndMono.java](https://github.com/balamaci/rxjava-playground/blob/master/src/test/java/com/balamaci/rx/.java)
 
-### Simple operators to create Observables
+### Simple operators to create Flux
 
 ```
-Observable<Integer> observable = Observable.just(1, 5, 10);
-Observable<Integer> observable = Observable.range(1, 10);
-Observable<String> observable = Observable.from(new String[] {"red", "green", "blue", "black"});
+Flux<Integer> observable = Flux.just(1, 5, 10);
+Flux<Integer> observable = Flux.range(1, 10);
+Flux<String> observable = Flux.fromArray(new String[] {"red", "green", "blue", "black"});
 ```
 
-### Observable from Future
+### Mono from Future
+We can also create a stream from Future, making easier to switch from legacy code to reactive
+Since **CompletableFuture**/**Future** can only return a single result, **Mono** is the returned type when converting
+from a Future
+
+**Mono** is a Flux that emits a single event(or no events) and completes. Can be useful to express in an API that a 
+single/no value(just completion notification) value is expected.
+
+```
+public Mono<Long> getId() {..} //better to express the intent than
+
+public Flux<Long> getId() {..} 
+```
 
 ```
 CompletableFuture<String> completableFuture = CompletableFuture
@@ -31,121 +43,123 @@ CompletableFuture<String> completableFuture = CompletableFuture
                     return "red";
             });
 
-Observable<String> observable = Observable.from(completableFuture);
+Mono<String> observable = Mono.fromFuture(completableFuture);
 ```
 
-### Creating your own Observable
+**Mono** and **Flux** both implement the **Publisher** interface from the [Reactive Streams](https://github.com/reactive-streams/reactive-streams-jvm) specification.
 
-Using **Observable.create** to handle the actual emissions of events with the events like **onNext**, **onCompleted**, **onError**
+### Creating your own Flux
 
-When subscribing to the Observable with observable.subscribe(...) the lambda code inside create() gets executed.
-Observable.subscribe(...) can take 3 handlers for each type of event - onNext, onError and onCompleted.
+Using **Flux.create** to handle the actual emissions of events with the events like **onNext**, **onCompleted**, **onError**
 
-When using Observable.create you need to be aware of [BackPressure]() and that Observables created with 'create' are not BackPressure aware
+When using Flux.create you need to be aware of [BackPressure]() and that created with 'create' are not BackPressure aware
 
 ``` 
-Observable<Integer> observable = Observable.create(subscriber -> {
+Flux<Integer> flux = Flux.create(subscriber -> {
     log.info("Started emitting");
 
     log.info("Emitting 1st");
-    subscriber.onNext(1);
+    subscriber.next(1);
 
     log.info("Emitting 2nd");
-    subscriber.onNext(2);
+    subscriber.next(2);
 
     subscriber.onCompleted();
 });
 
-observable.subscribe(
+flux.subscribe(
         val -> log.info("Subscriber received: {}", val),
         err -> log.error("Subscriber received error", err),
         () -> log.info("Subscriber got Completed event")
 );
 ```
 
-### Observables are lazy 
-Observables are lazy meaning that the code inside create() doesn't get executed without subscribing to the Observable.
-So event if we sleep for a long time inside create() method(to simulate a costly operation),
+When subscribing to the Flux with flux.subscribe(...) the lambda code inside create() gets executed.
+Flux.subscribe(...) can take 3 handlers for each type of event - onNext, onError and onCompleted.
+
+### Flux and Mono are lazy 
+Flux and Mono are lazy, meaning that the code inside create() doesn't get executed without subscribing to the Flux.
+So even if we sleep for a long time inside create() method(to simulate a costly operation),
 without subscribing to this Observable the code is not executed and the method returns immediately.
 
 ```
-public void observablesAreLazy() {
-    Observable<Integer> observable = Observable.create(subscriber -> {
+public void fluxIsLazy() {
+    Flux<Integer> observable = Flux.create(subscriber -> {
         log.info("Started emitting but sleeping for 5 secs"); //this is not executed
         Helpers.sleepMillis(5000);
-        subscriber.onNext(1);
+        subscriber.next(1);
     });
     log.info("Finished"); 
 }
 ```
 
-### Multiple subscriptions to the same Observable 
-When subscribing to an Observable, the create() method gets executed for each subscription this means that the events 
+### Multiple subscriptions to the same Flux 
+When subscribing to a Flux, the create() method gets executed for each subscription. This means that the events 
 inside create are re-emitted to each subscriber. 
 
 So every subscriber will get the same events and will not lose any events - this behavior is named **'cold observable'**
 
 ```
-Observable<Integer> observable = Observable.create(subscriber -> {
+Flux<Integer> flux = Flux.create(subscriber -> {
    log.info("Started emitting");
 
    log.info("Emitting 1st event");
-   subscriber.onNext(1);
+   subscriber.next(1);
 
    log.info("Emitting 2nd event");
-   subscriber.onNext(2);
+   subscriber.next(2);
 
    subscriber.onCompleted();
 });
 
 log.info("Subscribing 1st subscriber");
-observable.subscribe(val -> log.info("First Subscriber received: {}", val));
+flux.subscribe(val -> log.info("First Subscriber received: {}", val));
 
 log.info("=======================");
 
 log.info("Subscribing 2nd subscriber");
-observable.subscribe(val -> log.info("Second Subscriber received: {}", val));
+flux.subscribe(val -> log.info("Second Subscriber received: {}", val));
 ```
 
 will output
 
 ```
-[main] INFO Part01CreateObservable - Subscribing 1st subscriber
-[main] INFO Part01CreateObservable - Started emitting
-[main] INFO Part01CreateObservable - Emitting 1st event
-[main] INFO Part01CreateObservable - First Subscriber received: 1
-[main] INFO Part01CreateObservable - Emitting 2nd event
-[main] INFO Part01CreateObservable - First Subscriber received: 2
-[main] INFO Part01CreateObservable - =======================
-[main] INFO Part01CreateObservable - Subscribing 2nd subscriber
-[main] INFO Part01CreateObservable - Started emitting
-[main] INFO Part01CreateObservable - Emitting 1st event
-[main] INFO Part01CreateObservable - Second Subscriber received: 1
-[main] INFO Part01CreateObservable - Emitting 2nd event
-[main] INFO Part01CreateObservable - Second Subscriber received: 2
+[main] - Subscribing 1st subscriber
+[main] - Started emitting
+[main] - Emitting 1st event
+[main] - First Subscriber received: 1
+[main] - Emitting 2nd event
+[main] - First Subscriber received: 2
+[main] - =======================
+[main] - Subscribing 2nd subscriber
+[main] - Started emitting
+[main] - Emitting 1st event
+[main] - Second Subscriber received: 1
+[main] - Emitting 2nd event
+[main] - Second Subscriber received: 2
 ```
 
 ### Checking if there are any active subscribers 
 Inside the create() method, we can check is there are still active subscribers to our Observable.
 It's a way to prevent to do extra work(like for ex. querying a datasource for entries) if no one is listening
 In the following example we'd expect to have an infinite stream, but because we stop if there are no active subscribers we stop producing events.
-The **take()** operator unsubscribes from the Observable after it's received the specified amount of events.
+The **take()** operator for ex. just unsubscribes from the Flux after it's received the specified amount of events.
 
 ```
-Observable<Integer> observable = Observable.create(subscriber -> {
+Flux<Integer> flux = Flux.create(subscriber -> {
 
     int i = 1;
     while(true) {
-        if(subscriber.isUnsubscribed()) {
+        if(subscriber.isCancelled()) {
              break;
         }
 
         subscriber.onNext(i++);
     }
-    //subscriber.onCompleted(); too late to emit Complete event since subscriber already unsubscribed
+    //subscriber.completed(); too late to emit Complete event since subscriber already unsubscribed
 });
 
-observable
+flux
     .take(5) //unsubscribes after the 5th event
     .subscribe(val -> log.info("Subscriber received: {}", val),
                err -> log.error("Subscriber received error", err),
@@ -179,8 +193,7 @@ The delay operator uses a [Scheduler](#schedulers) by default, which actually me
 running the operators and the subscribe operations on a different thread and so the test method
 will terminate before we see the text from the log.
 
-To prevent this we use the **.toBlocking()** operator which returns a **BlockingObservable**. Operators on
-**BlockingObservable** block(wait) until upstream Observable is completed
+
 
 ## Merging Streams
 Operators for working with multiple streams
@@ -194,23 +207,26 @@ This is an useful scenario when for example you want to make requests to remote 
 wait for both responses before continuing. It also takes a function which will produce the combined result
 of the zipped streams once each has emitted a value.
 
+![Zip](https://raw.githubusercontent.com/reactor/projectreactor.io/master/src/main/static/assets/img/marble/zip.png)
+
+
 Zip operator besides the streams to zip, also takes as parameter a function which will produce the 
 combined result of the zipped streams once each stream emitted it's value
 
 ```
-Observable<Boolean> isUserBlockedStream = Observable.
-                                            from(CompletableFuture.supplyAsync(() -> {
+Mono<Boolean> isUserBlockedStream = Mono.
+                                     fromFuture(CompletableFuture.supplyAsync(() -> {
             Helpers.sleepMillis(200);
             return Boolean.FALSE;
 }));
 
-Observable<Integer> userCreditScoreStream = Observable.
-                                            from(CompletableFuture.supplyAsync(() -> {
+Mono<Integer> userCreditScoreStream = Mono.
+                                       fromFuture(CompletableFuture.supplyAsync(() -> {
             Helpers.sleepMillis(2300);
             return 5;
 }));
 
-Observable<Pair<Boolean, Integer>> userCheckStream = Observable.
+Flux<Pair<Boolean, Integer>> userCheckStream = Flux.
            zip(isUserBlockedStream, userCreditScoreStream, 
                       (blocked, creditScore) -> new Pair<Boolean, Integer>(blocked, creditScore));
 
@@ -222,10 +238,10 @@ to the subscriber.
 
 Another good example of 'zip' is to slow down a stream by another basically **implementing a periodic emitter of events**:
 ```  
-Observable<String> colors = Observable.just("red", "green", "blue");
-Observable<Long> timer = Observable.interval(2, TimeUnit.SECONDS);
+Flux<String> colors = Flux.just("red", "green", "blue");
+Flux<Long> timer = Flux.interval(2, TimeUnit.SECONDS);
 
-Observable<String> periodicEmitter = Observable.zip(colors, timer, (key, val) -> key);
+Flux<String> periodicEmitter = Flux.zip(colors, timer, (key, val) -> key);
 ```
 Since the zip operator needs a pair of events, the slow stream will work like a timer by periodically emitting 
 with zip setting the pace of emissions downstream every 2 seconds.
@@ -234,12 +250,12 @@ with zip setting the pace of emissions downstream every 2 seconds.
 
 ### merge
 Merge operator combines one or more stream and passes events downstream as soon as they appear.
-
+![merge](https://raw.githubusercontent.com/reactor/projectreactor.io/master/src/main/static/assets/img/marble/merge.png)
 ```
-Observable<String> colors = periodicEmitter("red", "green", "blue", 2, TimeUnit.SECONDS);
+Flux<String> colors = periodicEmitter("red", "green", "blue", 2, TimeUnit.SECONDS);
 
-Observable<Long> numbers = Observable.interval(1, TimeUnit.SECONDS)
-                .take(5);
+Flux<Long> numbers = Flux.interval(Duration.of(1, ChronoUnit.SECONDS))
+                         .take(5);
 ```
 
 ```
@@ -255,14 +271,15 @@ Observable<Long> numbers = Observable.interval(1, TimeUnit.SECONDS)
 
 ### concat
 Concat operator appends another streams at the end of another
+![concat](https://raw.githubusercontent.com/reactor/projectreactor.io/master/src/main/static/assets/img/marble/concat.png)
 
 ```
-Observable<String> colors = periodicEmitter("red", "green", "blue", 2, TimeUnit.SECONDS);
+Flux<String> colors = periodicEmitter("red", "green", "blue", 2, TimeUnit.SECONDS);
 
-Observable<Long> numbers = Observable.interval(1, TimeUnit.SECONDS)
-                .take(4);
+Flux<Long> numbers = Flux.interval(Duration.of(1, ChronoUnit.SECONDS))
+                         .take(4);
 
-Observable events = Observable.concat(colors, numbers);
+Flux events = Flux.concat(colors, numbers);
 ```
 
 ```
@@ -315,27 +332,29 @@ these Streams back as coming from a single stream.
 
 Why this looks like fork-join because for each element you can fork some jobs that keeps emitting results,
 and these results are emitted back as elements to the subscribers downstream
+![flatmap](https://raw.githubusercontent.com/reactor/projectreactor.io/master/src/main/static/assets/img/marble/flatmap.png)
+
 
 Rules of thumb to consider before getting comfortable with flatMap: 
    
-   - When you have an 'item' and you'll get Observable&lt;X&gt;, instead of X, you need flatMap. Most common example is when you want 
+   - When you have an 'item' and you'll get Flux&lt;X&gt;, instead of X, you need flatMap. Most common example is when you want 
    to make a remote call that returns an Observable. For ex if you have a stream of customerIds, and downstream you
     want to work with actual Customer objects:
    ```   
-   Observable<Customer> getCustomer(Integer customerId) {..}
+   Flux<Customer> getCustomer(Integer customerId) {..}
     ...
    
-   Observable<Integer> customerIds = Observable.of(1,2,3,4);
-   Observable<Customer> customers = customerIds
-                                        .flatMap(customerId -> getCustomer(customerId));
+   Flux<Integer> customerIds = Flux.of(1,2,3,4);
+   Flux<Customer> customers = customerIds
+                                   .flatMap(customerId -> getCustomer(customerId));
    ```
    
-   - When you have Observable&lt;Observable&lt;T&gt;&gt; you probably need flatMap.
+   - When you have Flux&lt;Flux&lt;T&gt;&gt; you probably need flatMap.
 
 We use a simulated remote call that might return asynchronous as many events as the length of the color string
 ```
-    private Observable<String> simulateRemoteOperation(String color) {
-        return Observable.<String>create(subscriber -> {
+    private Flux<String> simulateRemoteOperation(String color) {
+        return Flux.<String>create(subscriber -> {
                     Runnable asyncRun = () -> {
                         for (int i = 0; i < color.length(); i++) {
                             subscriber.onNext(color + i);
@@ -351,11 +370,11 @@ We use a simulated remote call that might return asynchronous as many events as 
 
 If we have a stream of color names:
 ```
-Observable<String> colors = Observable.just("orange", "red", "green")
+Flux<String> colors = Flux.just("orange", "red", "green")
 ```
 to invoke the remote operation: 
 ```
-Observable<String> colors = Observable.just("orange", "red", "green")
+Flux<String> colors = Flux.just("orange", "red", "green")
          .flatMap(colorName -> simulateRemoteOperation(colorName));
 
 colors.subscribe(val -> log.info("Subscriber received: {}", val));         
@@ -378,13 +397,16 @@ returns
 16:44:16 [Thread-0]- Subscriber received: orange5
 ```
 
-Notice how the results are coming intertwined. This is because flatMap actually subscribes to it's inner Observables 
+
+Notice how the results are coming intertwined. This is because flatMap actually subscribes to it's inner Flux 
 returned from 'simulateRemoteOperation'. You can specify the concurrency level of flatMap as a parameter. Meaning 
 you can say how many of the substreams should be subscribed "concurrently" - aka before the onComplete 
 event is triggered on the substreams.
 By setting the concurrency to **1** we don't subscribe to other substreams until the current one finishes:
+
+
 ```
-Observable<String> colors = Observable.just("orange", "red", "green")
+Flux<String> colors = Flux.just("orange", "red", "green")
                      .flatMap(val -> simulateRemoteOperation(val), 1); //
 
 ```
@@ -407,13 +429,13 @@ Notice now there is a sequence from each color before the next one appears
 ```
 
 There is actually an operator which is basically this flatMap with 1 concurrency called **concatMap**.
-
+![concatMap](https://raw.githubusercontent.com/reactor/projectreactor.io/master/src/main/static/assets/img/marble/concatmap.png)
 
 Inside the flatMap we can operate on the substream with the same stream operators
 ```
-Observable<Pair<String, Integer>> colorsCounted = colors
+Flux<Pair<String, Integer>> colorsCounted = colors
     .flatMap(colorName -> {
-               Observable<Long> timer = Observable.interval(2, TimeUnit.SECONDS);
+               Flux<Long> timer = Flux.interval(2, TimeUnit.SECONDS);
 
                return simulateRemoteOperation(colorName) // <- Still a stream
                               .zipWith(timer, (val, timerVal) -> val)
@@ -425,7 +447,8 @@ Observable<Pair<String, Integer>> colorsCounted = colors
 
 ## Error handling
 Exceptions are for exceptional situations.
-The Observable contract specifies that exceptions are terminal operations. That means in case of error, the subscriber unsubscribes:
+The Reactive Streams specification says that exceptions are terminal operations. 
+That means in case an error reaches the Subscriber, after invoking the 'onError' handler, it also unsubscribes:
 
 ```
 Observable<String> colors = Observable.just("green", "blue", "red", "yellow")
@@ -449,8 +472,8 @@ returns:
 23:30:17 [main] INFO - Subscriber received: blue*XXX
 23:30:17 [main] ERROR - Subscriber received error 'Encountered red'
 ```
-After the map() operator encounters an error, it unsubscribed, therefore 'yellow' was not even sent downstream.
-So the idea might be to keep Exceptions for exceptional situations and instead return .
+After the map() operator encounters an error, it triggers the error handler in the subscriber which also unsubscribes(cancels the subscription) from the stream,
+therefore 'yellow' is not even sent downstream.
 
 However there are operators to deal with error flow control. 
 
