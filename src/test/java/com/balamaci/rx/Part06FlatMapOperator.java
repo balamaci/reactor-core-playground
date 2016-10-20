@@ -111,6 +111,18 @@ public class Part06FlatMapOperator implements BaseTestObservables {
     }
 
     /**
+     * flatMap in it's most complex form allows to override the 'error' and 'complete' event not just the 'next' event
+     */
+    @Test
+    public void flatMapOverride() {
+        Flux<String> colors = Flux.just("red", "green", "blue", "red", "yellow", "green", "green");
+        Flux remastered = colors.window(2)
+                       .flatMap(Flux::just, Flux::error, () -> Flux.just("#"));
+        subscribeWithLogWaiting(remastered);
+
+    }
+
+    /**
      * Simulated remote operation that emits as many events as the length of the color string
      * @param color color
      * @return Flux
