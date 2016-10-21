@@ -1,4 +1,4 @@
-package com.balamaci.rx;
+package com.balamaci.reactor;
 
 import org.junit.Test;
 import reactor.core.publisher.Flux;
@@ -19,7 +19,7 @@ public class Part08ErrorHandling implements BaseTestObservables {
 
     /**
      * After the map() operator encounters an error, it triggers the error handler
-     * in the subscriber which also unsubscribes(cancels the subscription) from the stream,
+     * in the map operator, which also unsubscribes(cancels the subscription) from the stream,
      * therefore 'yellow' is not even sent downstream.
      */
     @Test
@@ -44,8 +44,8 @@ public class Part08ErrorHandling implements BaseTestObservables {
      * receives it in the 'onNext()' instead in 'onError()'
      */
     @Test
-    public void onErrorReturn() {
-        Flux<String> colors = Flux.just("green", "blue", "red", "yellow")
+    public void onErrorReturnDoesntPrevent() {
+        Flux<String> colors = Flux.just("green", "blue", "red", "yellow", "blue")
                 .map(color -> {
                     if ("red".equals(color)) {
                         throw new RuntimeException("Encountered red");

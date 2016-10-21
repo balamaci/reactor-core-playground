@@ -1,4 +1,4 @@
-package com.balamaci.rx.util;
+package com.balamaci.reactor.util;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

@@ -1,4 +1,4 @@
-package com.balamaci.rx;
+package com.balamaci.reactor;
 
 /**
  * @author sbalamaci

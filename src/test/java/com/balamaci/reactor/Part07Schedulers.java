@@ -1,13 +1,17 @@
-package com.balamaci.rx;
+package com.balamaci.reactor;
 
-import com.balamaci.rx.util.Helpers;
+import com.balamaci.reactor.util.Helpers;
 import org.junit.Test;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
+
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * RxJava provides some high level concepts for concurrent execution, like ExecutorService we're not dealing
- * with the low level constructs like creating the Threads ourselves. Instead we're using a {@see rx.Scheduler} which create
+ * with the low level constructs like creating the Threads ourselves. Instead we're using a {@see reactor.Scheduler} which create
  * Workers who are responsible for scheduling and running code. By default RxJava will not introduce concurrency
  * and will run the operations on the subscription thread.
  *
@@ -88,8 +92,8 @@ public class Part07Schedulers implements BaseTestObservables {
         log.info("Starting");
 
         Flux<Integer> observable = simpleObservable()
-                .subscribeOn(Schedulers.newElastic("subscribe"))
-                .subscribeOn(Schedulers.newElastic("2nd-subscribe"))
+                .subscribeOn(Schedulers.newElastic("subscribeA"))
+                .subscribeOn(Schedulers.newElastic("subscribeB"))
                 .map(val -> {
                     int newValue = val * 2;
                     log.info("Mapping new val {}", newValue);
@@ -99,4 +103,36 @@ public class Part07Schedulers implements BaseTestObservables {
         subscribeWithLogWaiting(observable);
     }
 
+    @Test
+    public void flatMapConcurrency() {
+        log.info("Starting");
+
+        ExecutorService singleExecutor = Executors.newFixedThreadPool(2);
+
+        Flux<String> observable = Flux.just("red", "green", "blue", "yellow")
+                .flatMap(color -> simulateRemoteOperation(color)
+                                    .subscribeOn(Schedulers.fromExecutor(singleExecutor))
+//                                    .subscribeOn(Schedulers.newElastic("custom"))
+                );
+
+        subscribeWithLogWaiting(observable);
+    }
+
+    private Mono<String> simulateRemoteOperation(String color) {
+        return Mono.just(color).map(colorVal -> {
+            Helpers.sleepMillis(3000);
+
+            log.info("Emitting " + color.toUpperCase());
+            return color.toUpperCase();
+        });
+
+/*        return Mono.create(() -> {
+            Helpers.sleepMillis(3000);
+            String emittedVal = color.toUpperCase();
+
+            log.info("Emitting {}", emittedVal);
+            return Mono.just(emittedVal);
+        });*/
+
+    }
 }

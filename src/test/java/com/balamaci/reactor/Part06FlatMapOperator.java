@@ -1,6 +1,6 @@
-package com.balamaci.rx;
+package com.balamaci.reactor;
 
-import com.balamaci.rx.util.Helpers;
+import com.balamaci.reactor.util.Helpers;
 import javafx.util.Pair;
 import org.junit.Test;
 import reactor.core.publisher.Flux;
@@ -112,14 +112,41 @@ public class Part06FlatMapOperator implements BaseTestObservables {
 
     /**
      * flatMap in it's most complex form allows to override the 'error' and 'complete' event not just the 'next' event
+     * Here we introduce another event on window stream completion
      */
     @Test
-    public void flatMapOverride() {
+    public void flatMapOverrideCompleteEvent() {
         Flux<String> colors = Flux.just("red", "green", "blue", "red", "yellow", "green", "green");
-        Flux remastered = colors.window(2)
-                       .flatMap(Flux::just, Flux::error, () -> Flux.just("#"));
-        subscribeWithLogWaiting(remastered);
+        Flux remastered = colors
+                .window(2)
+                .flatMap(window -> window.flatMap(Flux::just,
+                                                  Flux::error,
+                                                  () -> Flux.just("===")
+                                         )
+                );
 
+        subscribeWithLogWaiting(remastered);
+    }
+
+    /**
+     * flatMap we ignore thrown exceptions
+     */
+    @Test
+    public void flatMapOverrideError() {
+        Flux<String> colors = Flux.just("green", "blue", "red", "yellow", "pink", "green");
+
+        Flux<String> remastered = colors
+                .flatMap(color -> simulateRemoteOperation(color)
+                                    .flatMap(Flux::just,
+                                             err -> {
+                                                    log.info("Got exception but we ignore");
+                                                    return Flux.empty();
+                                            },
+                                            Flux::empty
+                                    )
+                );
+
+        subscribeWithLogWaiting(remastered);
     }
 
     /**
@@ -130,6 +157,9 @@ public class Part06FlatMapOperator implements BaseTestObservables {
     private Flux<String> simulateRemoteOperation(String color) {
         return Flux.<String>create(subscriber -> {
             Runnable asyncRun = () -> {
+                if("pink".equals(color)) {
+                    subscriber.error(new RuntimeException("Pink is not allowed"));
+                }
                 for (int i = 0; i < color.length(); i++) {
                     subscriber.next(color + i);
                     Helpers.sleepMillis(200);
@@ -140,5 +170,6 @@ public class Part06FlatMapOperator implements BaseTestObservables {
             new Thread(asyncRun).start();
         });
     }
+
 
 }

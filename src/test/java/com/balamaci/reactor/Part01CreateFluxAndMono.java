@@ -1,6 +1,6 @@
-package com.balamaci.rx;
+package com.balamaci.reactor;
 
-import com.balamaci.rx.util.Helpers;
+import com.balamaci.reactor.util.Helpers;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

@@ -1,9 +1,10 @@
-package com.balamaci.rx;
+package com.balamaci.reactor;
 
-import com.balamaci.rx.util.Helpers;
+import com.balamaci.reactor.util.Helpers;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 import rx.Observable;
 
 import java.time.Duration;
@@ -36,8 +37,16 @@ public interface BaseTestObservables {
         return flux;
     }
 
-    default void subscribeWithLog(Flux flux) {
+    default <T> void subscribeWithLog(Flux<T> flux) {
         flux.subscribe(
+                val -> log.info("Subscriber received: {}", val),
+                logErrorConsumer(),
+                logCompleteMethod()
+        );
+    }
+
+    default <T> void subscribeWithLog(Mono<T> mono) {
+        mono.subscribe(
                 val -> log.info("Subscriber received: {}", val),
                 logErrorConsumer(),
                 logCompleteMethod()

@@ -16,9 +16,9 @@ Code is available at [Part01CreateFluxAndMono.java](https://github.com/balamaci/
 ### Simple operators to create Flux
 
 ```
-Flux<Integer> observable = Flux.just(1, 5, 10);
-Flux<Integer> observable = Flux.range(1, 10);
-Flux<String> observable = Flux.fromArray(new String[] {"red", "green", "blue", "black"});
+Flux<Integer> flux = Flux.just(1, 5, 10);
+Flux<Integer> flux = Flux.range(1, 10);
+Flux<String> flux = Flux.fromArray(new String[] {"red", "green", "blue", "black"});
 ```
 
 ### Mono from Future
@@ -43,7 +43,7 @@ CompletableFuture<String> completableFuture = CompletableFuture
                     return "red";
             });
 
-Mono<String> observable = Mono.fromFuture(completableFuture);
+Mono<String> response = Mono.fromFuture(completableFuture);
 ```
 
 **Mono** and **Flux** both implement the **Publisher** interface from the [Reactive Streams](https://github.com/reactive-streams/reactive-streams-jvm) specification.
@@ -80,11 +80,11 @@ Flux.subscribe(...) can take 3 handlers for each type of event - onNext, onError
 ### Flux and Mono are lazy 
 Flux and Mono are lazy, meaning that the code inside create() doesn't get executed without subscribing to the Flux.
 So even if we sleep for a long time inside create() method(to simulate a costly operation),
-without subscribing to this Observable the code is not executed and the method returns immediately.
+without subscribing to this Publisher(Flux or Mono) the code is not executed and the method returns immediately.
 
 ```
 public void fluxIsLazy() {
-    Flux<Integer> observable = Flux.create(subscriber -> {
+    Flux<Integer> flux = Flux.create(subscriber -> {
         log.info("Started emitting but sleeping for 5 secs"); //this is not executed
         Helpers.sleepMillis(5000);
         subscriber.next(1);
@@ -140,7 +140,7 @@ will output
 ```
 
 ### Checking if there are any active subscribers 
-Inside the create() method, we can check is there are still active subscribers to our Observable.
+Inside the create() method, we can check is there are still active subscribers to our Flux.
 It's a way to prevent to do extra work(like for ex. querying a datasource for entries) if no one is listening
 In the following example we'd expect to have an infinite stream, but because we stop if there are no active subscribers we stop producing events.
 The **take()** operator for ex. just unsubscribes from the Flux after it's received the specified amount of events.
@@ -170,29 +170,120 @@ flux
 
 ## Simple Operators
 
-### interval
-Periodically emits a number starting from 0 and then increasing the value on each emission.
-```
-log.info("Starting");
-Observable.interval(5, TimeUnit.SECONDS)
-       .take(4)
-       .toBlocking()
-       .subscribe(tick -> log.info("Tick {}", tick),
-                  (ex) -> log.info("Error emitted"),
-                  () -> log.info("Completed"));
-//results
-22:27:44 [main] INFO Part02SimpleOperators - Starting
-22:27:49 [main] INFO Part02SimpleOperators - Tick 0
-22:27:54 [main] INFO Part02SimpleOperators - Tick 1
-22:27:59 [main] INFO Part02SimpleOperators - Tick 2
-22:28:04 [main] INFO Part02SimpleOperators - Tick 3
-22:28:04 [main] INFO Part02SimpleOperators - Completed
-```
+### delay
+Delay operator - the Thread.sleep of the reactive world, it's pausing for a particular increment of time
+before emitting the events which are thus shifted by the specified time amount.
+
+![delay](https://raw.githubusercontent.com/reactor/projectreactor.io/master/src/main/static/assets/img/marble/delayonnext.png)
 
 The delay operator uses a [Scheduler](#schedulers) by default, which actually means it's
 running the operators and the subscribe operations on a different thread and so the test method
 will terminate before we see the text from the log.
 
+
+### interval
+Periodically emits a number starting from 0 and then increasing the value on each emission.
+
+![interval](https://raw.githubusercontent.com/reactor/projectreactor.io/master/src/main/static/assets/img/marble/interval.png)
+
+```
+log.info("Starting");
+CountDownLatch latch = new CountDownLatch(1);
+
+Flux.interval(Duration.of(1, ChronoUnit.SECONDS))
+    .take(5)
+    .subscribe(tick -> log.info("Tick {}", tick),
+                  (ex) -> log.info("Error emitted"),
+                  () -> {
+                          log.info("Completed");
+                          latch.countDown();
+                  });
+
+Helpers.wait(latch);
+```
+produces
+```
+15:44:43 [main]  - Starting
+15:44:44 [timer-1]  - Tick 0
+15:44:45 [timer-1]  - Tick 1
+15:44:46 [timer-1]  - Tick 2
+15:44:47 [timer-1]  - Tick 3
+15:44:48 [timer-1]  - Tick 4
+15:44:48 [timer-1]  - Completed
+```
+
+### scan
+Takes an initial value and a function(accumulator, currentValue). It goes through the events 
+sequence and combines the current event value with the previous result(accumulator) emitting downstream the
+The initial value is used for the first event
+
+```
+Flux<Integer> numbers = 
+                Flux.just(3, 5, -2, 9)
+                    .scan(0, (totalSoFar, currentValue) -> {
+                               log.info("TotalSoFar={}, currentValue={}", totalSoFar, currentValue);
+                               return totalSoFar + currentValue;
+                    });
+```
+
+```
+16:09:17 [main] - Subscriber received: 0
+16:09:17 [main] - TotalSoFar=0, currentValue=3
+16:09:17 [main] - Subscriber received: 3
+16:09:17 [main] - TotalSoFar=3, currentValue=5
+16:09:17 [main] - Subscriber received: 8
+16:09:17 [main] - TotalSoFar=8, currentValue=-2
+16:09:17 [main] - Subscriber received: 6
+16:09:17 [main] - TotalSoFar=6, currentValue=9
+16:09:17 [main] - Subscriber received: 15
+16:09:17 [main] - Subscriber got Completed event
+```
+
+### reduce
+reduce operator acts like the scan operator but it only passes downstream the final result 
+(doesn't pass the intermediate results downstream) so the subscriber receives just one event
+
+```
+Mono<Integer> numbers = Flux.just(3, 5, -2, 9)
+                            .reduce(0, (totalSoFar, val) -> {
+                                         log.info("totalSoFar={}, emitted={}", totalSoFar, val);
+                                         return totalSoFar + val;
+                            });
+```
+
+```
+17:08:29 [main] - totalSoFar=0, emitted=3
+17:08:29 [main] - totalSoFar=3, emitted=5
+17:08:29 [main] - totalSoFar=8, emitted=-2
+17:08:29 [main] - totalSoFar=6, emitted=9
+17:08:29 [main] - Subscriber received: 15
+17:08:29 [main] - Subscriber got Completed event
+```
+
+### collect
+collect operator acts similar to the _reduce_ operator, but while the _reduce_ operator uses a reduce function
+which returns a value, the _collect_ operator takes a container supplier and a function which doesn't return
+anything(a consumer). The mutable container is passed for every event and thus you get a chance to modify it
+in this collect consumer function.
+
+```
+Mono<List<Integer>> numbers = Flux.just(3, 5, -2, 9)
+                                  .collect(ArrayList::new, (container, value) -> {
+                                        log.info("Adding {} to container", value);
+                                        container.add(value);
+                                        //notice we don't need to return anything
+                                  });
+```
+```
+17:40:18 [main] - Adding 3 to container
+17:40:18 [main] - Adding 5 to container
+17:40:18 [main] - Adding -2 to container
+17:40:18 [main] - Adding 9 to container
+17:40:18 [main] - Subscriber received: [3, 5, -2, 9]
+17:40:18 [main] - Subscriber got Completed event
+```
+
+because the usecase to store to a List container is so common, there is a **.toList()** operator that is just a collector adding to a List. 
 
 
 ## Merging Streams
@@ -431,11 +522,12 @@ Notice now there is a sequence from each color before the next one appears
 There is actually an operator which is basically this flatMap with 1 concurrency called **concatMap**.
 ![concatMap](https://raw.githubusercontent.com/reactor/projectreactor.io/master/src/main/static/assets/img/marble/concatmap.png)
 
+### flatMap substreams are still streams
 Inside the flatMap we can operate on the substream with the same stream operators
 ```
 Flux<Pair<String, Integer>> colorsCounted = colors
     .flatMap(colorName -> {
-               Flux<Long> timer = Flux.interval(2, TimeUnit.SECONDS);
+               Flux<Long> timer = Flux.interval(Duration.of(2, ChronoUnit.SECONDS));
 
                return simulateRemoteOperation(colorName) // <- Still a stream
                               .zipWith(timer, (val, timerVal) -> val)
@@ -445,13 +537,82 @@ Flux<Pair<String, Integer>> colorsCounted = colors
     );
 ```
 
+### flatMap can override 'error' and 'complete' event
+**flatMap** in it's most complex form allows to override the 'error' and 'complete' event not just the 'next' event
+
+Here we introduce another event on window stream completion
+```
+Flux<String> colors = Flux.just("red", "green", "blue", "red", "yellow", "green", "green");
+Flux remastered = colors
+                    .window(2)
+                    .flatMap(window -> window.flatMap(Flux::just,
+                                                      Flux::error,
+                                                      () -> Flux.just("===")
+                                              )
+                    );
+```
+produces
+```
+[main] - Subscriber received: red
+[main] - Subscriber received: green
+[main] - Subscriber received: ===
+[main] - Subscriber received: blue
+[main] - Subscriber received: red
+[main] - Subscriber received: ===
+[main] - Subscriber received: yellow
+[main] - Subscriber received: green
+[main] - Subscriber received: ===
+[main] - Subscriber received: green
+[main] - Subscriber received: ===
+[main] - Subscriber got Completed event
+```
+
+## Advanced operators
+
+### groupBy
+groupBy splits a stream into multiple streams(a stream of streams), by a grouping function which provides the key
+for the grouping. These substreams are GroupedFlux which consists of the grouping key and a value.
+
+```
+//the stream of events is transformed into a stream of streams
+Flux<T>  ->  Flux<GroupedFlux<K, T>>
+```
+![groupBy](https://raw.githubusercontent.com/reactor/projectreactor.io/master/src/main/static/assets/img/marble/groupby.png)
+
+
+In the following example we use the identity function _.groupBy(val -> val)_ when generating the grouping keys
+meaning that the keys are also the color values: 
+```
+Flux<String> colors = Flux.fromArray(new String[]{"red", "green", "blue",
+                "red", "yellow", "green", "green"});
+
+Flux<GroupedFlux<String, String>> groupedColorsStream = colors
+                .groupBy(val -> val); //identity function
+//                .groupBy(val -> "length" + val.length());
+
+
+Flux<Pair<String, Long>> colorCountStream = groupedColorsStream
+                .flatMap(groupedColor -> groupedColor
+                                            .count()
+                                            .map(count -> new Pair<>(groupedColor.key(), count))
+                );
+```
+
+```
+16:10:59 - Subscriber received: red=2
+16:10:59 - Subscriber received: green=3
+16:10:59 - Subscriber received: blue=1
+16:10:59 - Subscriber received: yellow=1
+16:10:59 - Subscriber got Completed event
+```
+
 ## Error handling
 Exceptions are for exceptional situations.
 The Reactive Streams specification says that exceptions are terminal operations. 
 That means in case an error reaches the Subscriber, after invoking the 'onError' handler, it also unsubscribes:
 
 ```
-Observable<String> colors = Observable.just("green", "blue", "red", "yellow")
+Flux<String> colors = Flux.just("green", "blue", "red", "yellow")
        .map(color -> {
               if ("red".equals(color)) {
                         throw new RuntimeException("Encountered red");
@@ -479,8 +640,8 @@ However there are operators to deal with error flow control.
 
 Let's introduce a more realcase scenario of a simulated remote request that might fail 
 ```
-private Observable<String> simulateRemoteOperation(String color) {
-    return Observable.<String>create(subscriber -> {
+private Flux<String> simulateRemoteOperation(String color) {
+    return Flux.<String>create(subscriber -> {
          if ("red".equals(color)) {
               log.info("Emitting RuntimeException for {}", color);
               throw new RuntimeException("Color red raises exception");
@@ -493,8 +654,8 @@ private Observable<String> simulateRemoteOperation(String color) {
          String value = "**" + color + "**";
 
          log.info("Emitting {}", value);
-         subscriber.onNext(value);
-         subscriber.onCompleted();
+         subscriber.next(value);
+         subscriber.complete();
     });
 }
 ```
@@ -504,7 +665,7 @@ private Observable<String> simulateRemoteOperation(String color) {
 
 The 'onErrorReturn' operator replaces an exception with a value:
 ```
-Observable<String> colors = Observable.just("green", "blue", "red", "white", "blue")
+Flux<String> colors = Flux.just("green", "blue", "red", "white", "blue")
                 .flatMap(color -> simulateRemoteOperation(color))
                 .onErrorReturn(throwable -> "-blank-");
                 
@@ -523,9 +684,8 @@ returns:
 flatMap encounters an error when it subscribes to 'red' substreams and thus still unsubscribe from 'colors' 
 stream and the remaining colors are not longer emitted
 
-
 ```
-Observable<String> colors = Observable.just("green", "blue", "red", "white", "blue")
+Flux<String> colors = Flux.just("green", "blue", "red", "white", "blue")
                 .flatMap(color -> simulateRemoteOperation(color)
                                     .onErrorReturn(throwable -> "-blank-")
                 );
@@ -648,12 +808,12 @@ however we want to wait a little before retrying so in the zip function we retur
 The delay also needs to be subscribed to be effected so we also flatMap
 
 ```
-Observable<String> colors = Observable.just("blue", "green", "red", "black", "yellow");
+Flux<String> colors = Flux.just("blue", "green", "red", "black", "yellow");
 
 colors.flatMap(colorName -> 
-                        simulateRemoteOperation(colorName)
-                               .retryWhen(exceptionStream -> exceptionStream
-                                          .zipWith(Observable.range(1, 3), (exc, attempts) -> {
+                    simulateRemoteOperation(colorName)
+                           .retryWhen(exceptionStream -> exceptionStream
+                                        .zipWith(Observable.range(1, 3), (exc, attempts) -> {
                                                 //don't retry for IllegalArgumentException
                                                 if(exc instanceof IllegalArgumentException) {
                                                      return Observable.error(exc);
