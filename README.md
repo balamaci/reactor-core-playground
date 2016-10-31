@@ -19,6 +19,9 @@ Code is available at [Part01CreateFluxAndMono.java](https://github.com/balamaci/
 Flux<Integer> flux = Flux.just(1, 5, 10);
 Flux<Integer> flux = Flux.range(1, 10);
 Flux<String> flux = Flux.fromArray(new String[] {"red", "green", "blue", "black"});
+
+/** from Java Stream **/
+Flux<String> observable = Flux.fromStream(Stream.of("blue", "green"));
 ```
 
 ### Mono from Future

@@ -9,6 +9,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.Stream;
 
 /**
  * Both Flux and Mono are extensions of Publisher
@@ -41,7 +42,15 @@ public class Part01CreateFluxAndMono implements BaseTestObservables {
         Flux<String> observable = Flux.fromArray(new String[]{"red", "green", "blue", "black"});
 
         observable.subscribe(
-                val -> log.info("Subscriber received: {}"));
+                val -> log.info("Subscriber received: {}", val));
+    }
+
+    @Test
+    public void fromJavaStream() {
+        Flux<String> observable = Flux.fromStream(Stream.of("blue", "green"));
+
+        observable.subscribe(
+                val -> log.info("Subscriber received: {}", val));
     }
 
     /**
