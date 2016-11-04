@@ -17,11 +17,11 @@ import java.util.function.Consumer;
 /**
  * @author sbalamaci
  */
-public interface BaseTestObservables {
+public interface BaseTestFlux {
 
-    Logger log = LoggerFactory.getLogger(BaseTestObservables.class);
+    Logger log = LoggerFactory.getLogger(BaseTestFlux.class);
 
-    default Flux<Integer> simpleObservable() {
+    default Flux<Integer> simpleFlux() {
         Flux<Integer> flux = Flux.create(subscriber -> {
             log.info("Started emitting");
 

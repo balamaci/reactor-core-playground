@@ -16,7 +16,7 @@ import java.util.stream.Stream;
  *
  * @author sbalamaci
  */
-public class Part01CreateFluxAndMono implements BaseTestObservables {
+public class Part01CreateFluxAndMono implements BaseTestFlux {
 
     private static final Logger log = LoggerFactory.getLogger(Part01CreateFluxAndMono.class);
 

@@ -24,7 +24,7 @@ import java.time.temporal.ChronoUnit;
  *
  * @author sbalamaci
  */
-public class Part06FlatMapOperator implements BaseTestObservables {
+public class Part06FlatMapOperator implements BaseTestFlux {
 
     /**
      * Common usecase when for each item you make an async remote call that returns a stream of items (a Publisher<T>)

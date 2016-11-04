@@ -3,7 +3,7 @@ package com.balamaci.reactor;
 /**
  * @author sbalamaci
  */
-public class Part09BackpressureHandling implements BaseTestObservables {
+public class Part09BackpressureHandling implements BaseTestFlux {
 
 
 /*

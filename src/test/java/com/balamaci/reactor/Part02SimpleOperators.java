@@ -17,7 +17,7 @@ import java.util.concurrent.CountDownLatch;
 /**
  * @author sbalamaci
  */
-public class Part02SimpleOperators implements BaseTestObservables {
+public class Part02SimpleOperators implements BaseTestFlux {
 
     private static final Logger log = LoggerFactory.getLogger(Part02SimpleOperators.class);
 

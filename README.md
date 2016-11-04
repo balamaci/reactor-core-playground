@@ -393,29 +393,6 @@ Should the second stream be a 'hot' emitter, its events would be lost until the 
 and the seconds stream is subscribed.
 
 
-### Schedulers
-RxJava provides some high level concepts for concurrent execution, like ExecutorService we're not dealing
-with the low level constructs like creating the Threads ourselves. Instead we're using a **Scheduler** which create
-Workers who are responsible for scheduling and running code. By default RxJava will not introduce concurrency 
-and will run the operations on the subscription thread.
-
-There are two methods through which we can introduce Schedulers into our chain of operations:
-
-   - **subscribeOn** allows to specify which Scheduler invokes the code contained in the lambda code for Observable.create()
-   - **observeOn** allows control to which Scheduler executes the code in the downstream operators
-
-RxJava provides some general use Schedulers:
- 
-  - **Schedulers.computation()** - to be used for CPU intensive tasks. A threadpool. Should not be used for tasks involving blocking IO.
-  - **Schedulers.io()** - to be used for IO bound tasks  
-  - **Schedulers.from(Executor)** - custom ExecutorService
-  - **Schedulers.newThread()** - always creates a new thread when a worker is needed. Since it's not thread pooled and 
-  always creates a new thread instead of reusing one, this scheduler is not very useful 
- 
-Although we said by default RxJava doesn't introduce concurrency, lots of operators involve waiting like **delay**,
-**interval**, **zip** need to run on a Scheduler, otherwise they would just block the subscribing thread. 
-By default **Schedulers.computation()** is used, but the Scheduler can be passed as a parameter.
-
 
 ## Flatmap operator
 The flatMap operator is so important and has so many different uses it deserves it's own category to explain it.
@@ -569,6 +546,29 @@ produces
 [main] - Subscriber received: ===
 [main] - Subscriber got Completed event
 ```
+
+### Schedulers
+Reactor provides some high level concepts for concurrent execution, like ExecutorService we're not dealing
+with the low level constructs like creating the Threads ourselves. Instead we're using a **Scheduler** which create
+Workers who are responsible for scheduling and running code. By default Reactor will not introduce concurrency 
+and will run the operations on the subscription thread.
+
+There are two methods through which we can introduce Schedulers into our chain of operations:
+
+   - **subscribeOn** allows to specify which Scheduler invokes the code contained in the lambda code for Flux.create()
+   - **observeOn** allows control to which Scheduler executes the code in the downstream operators
+
+Reactor provides some general use Schedulers:
+ 
+  - **Schedulers.computation()** - to be used for CPU intensive tasks. A threadpool. Should not be used for tasks involving blocking IO.
+  - **Schedulers.io()** - to be used for IO bound tasks  
+  - **Schedulers.from(Executor)** - custom ExecutorService
+  - **Schedulers.newThread()** - always creates a new thread when a worker is needed. Since it's not thread pooled and 
+  always creates a new thread instead of reusing one, this scheduler is not very useful 
+ 
+Although we said by default Reactor doesn't introduce concurrency, lots of operators involve waiting like **delay**,
+**interval**, **zip** need to run on a Scheduler, otherwise they would just block the subscribing thread. 
+By default **Schedulers.computation()** is used, but the Scheduler can be passed as a parameter.
 
 ## Advanced operators
 

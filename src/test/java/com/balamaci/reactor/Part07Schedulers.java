@@ -17,7 +17,7 @@ import java.util.concurrent.Executors;
  *
  * There are two methods through which we can introduce Schedulers into our chain of operations:
  * - <b>subscribeOn allows to specify which Scheduler invokes the code contained in the lambda code for Observable.create()
- * - <b>observeOn</b> allows control to which Scheduler executes the code in the downstream operators
+ * - <b>publishOn</b> allows control to which Scheduler executes the code in the downstream operators
  *
  * RxJava provides some general use Schedulers already implemented:
  *  - Schedulers.computation() - to be used for CPU intensive tasks. A threadpool
@@ -32,7 +32,7 @@ import java.util.concurrent.Executors;
  *
  * @author sbalamaci
  */
-public class Part07Schedulers implements BaseTestObservables {
+public class Part07Schedulers implements BaseTestFlux {
 
     /**
      * subscribeOn allows to specify which Scheduler invokes the code contained in the lambda code for Observable.create()
@@ -41,7 +41,7 @@ public class Part07Schedulers implements BaseTestObservables {
     public void testSubscribeOn() {
         log.info("Starting");
 
-        Flux<Integer> flux = Flux.create(subscriber -> { //code that will execute inside the IO ThreadPool
+        Flux<Integer> flux = Flux.create(subscriber -> { //code that will execute inside the elastic scheduler
             log.info("Starting slow network op");
             Helpers.sleepMillis(2000);
 
@@ -62,15 +62,15 @@ public class Part07Schedulers implements BaseTestObservables {
 
 
     /**
-     * observeOn switches the thread that is used for the subscribers downstream.
+     * publishOn switches the thread that is used for the subscribers downstream from it's invocation
      * If we initially subscribedOn the IoScheduler we and we
-     * further make another .
+     * further make another call .
      */
     @Test
-    public void testObserveOn() {
+    public void testPublishOn() {
         log.info("Starting");
 
-        Flux<Integer> observable = simpleObservable()
+        Flux<Integer> observable = simpleFlux()
                 .subscribeOn(Schedulers.newElastic("elastic-subscribe"))
                 .publishOn(Schedulers.newElastic("elastic-publish"))
                 .map(val -> {
@@ -85,13 +85,13 @@ public class Part07Schedulers implements BaseTestObservables {
 
     /**
      * Multiple calls to subscribeOn have no effect, just the first one will take effect, so we'll see the code
-     * execute on an IoScheduler thread.
+     * execute on the first  thread.
      */
     @Test
     public void multipleCallsToSubscribeOn() {
         log.info("Starting");
 
-        Flux<Integer> observable = simpleObservable()
+        Flux<Integer> observable = simpleFlux()
                 .subscribeOn(Schedulers.newElastic("subscribeA"))
                 .subscribeOn(Schedulers.newElastic("subscribeB"))
                 .map(val -> {
@@ -103,36 +103,37 @@ public class Part07Schedulers implements BaseTestObservables {
         subscribeWithLogWaiting(observable);
     }
 
+    /**
+     * By using subscribeOn in flatMap you can control the thread on which flapMap subscribes to the particular
+     * stream. By using a scheduler from a custom executor to which we allow a limited number of threads,
+     * we can also control how many concurrent threads are handling the stream operations inside the flatMap
+     */
     @Test
     public void flatMapConcurrency() {
         log.info("Starting");
 
         ExecutorService singleExecutor = Executors.newFixedThreadPool(2);
 
-        Flux<String> observable = Flux.just("red", "green", "blue", "yellow")
-                .flatMap(color -> simulateRemoteOperation(color)
+        Flux<String> observable = Flux.just("red", "green", "blue", "yellow", "orange")
+                .flatMap(color -> simulateRemoteOperationByUppercasing(color)
+                                    .map(changedColor -> {
+                                        String newValue = "**" + changedColor + "**";
+                                        log.info("Decorating {}", newValue);
+                                        return newValue;
+                                    })
                                     .subscribeOn(Schedulers.fromExecutor(singleExecutor))
-//                                    .subscribeOn(Schedulers.newElastic("custom"))
                 );
 
         subscribeWithLogWaiting(observable);
     }
 
-    private Mono<String> simulateRemoteOperation(String color) {
+    private Mono<String> simulateRemoteOperationByUppercasing(String color) {
         return Mono.just(color).map(colorVal -> {
             Helpers.sleepMillis(3000);
 
-            log.info("Emitting " + color.toUpperCase());
+            log.info("Emitting {}", color.toUpperCase());
             return color.toUpperCase();
         });
-
-/*        return Mono.create(() -> {
-            Helpers.sleepMillis(3000);
-            String emittedVal = color.toUpperCase();
-
-            log.info("Emitting {}", emittedVal);
-            return Mono.just(emittedVal);
-        });*/
 
     }
 }
