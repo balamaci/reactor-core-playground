@@ -18,7 +18,13 @@ Code is available at [Part01CreateFluxAndMono.java](https://github.com/balamaci/
 ```
 Flux<Integer> flux = Flux.just(1, 5, 10);
 Flux<Integer> flux = Flux.range(1, 10);
+
 Flux<String> flux = Flux.fromArray(new String[] {"red", "green", "blue", "black"});
+Flux<String> flux = Flux.fromIterable(List.of("red", "green", "blue"));
+
+/* from Java Stream */
+Stream<String> stream = Stream.of("red", "green");
+Flux<String> flux = Flux.fromStream(stream);
 ```
 
 ### Mono from Future

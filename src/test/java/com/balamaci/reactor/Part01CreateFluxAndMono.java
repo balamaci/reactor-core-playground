@@ -1,6 +1,7 @@
 package com.balamaci.reactor;
 
 import com.balamaci.reactor.util.Helpers;
+import javaslang.collection.List;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -9,6 +10,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.Stream;
 
 /**
  * Both Flux and Mono are extensions of Publisher
@@ -38,9 +40,26 @@ public class Part01CreateFluxAndMono implements BaseTestObservables {
 
     @Test
     public void fromArray() {
-        Flux<String> observable = Flux.fromArray(new String[]{"red", "green", "blue", "black"});
+        Flux<String> flux = Flux.fromArray(new String[]{"red", "green", "blue", "black"});
 
-        observable.subscribe(
+        flux.subscribe(
+                val -> log.info("Subscriber received: {}"));
+    }
+
+    @Test
+    public void fromIterable() {
+        Flux<String> flux = Flux.fromIterable(List.of("red", "green", "blue"));
+
+        flux.subscribe(
+                val -> log.info("Subscriber received: {}"));
+    }
+
+    @Test
+    public void fromJavaStream() {
+        Stream<String> stream = Stream.of("red", "green");
+        Flux<String> flux = Flux.fromStream(stream);
+
+        flux.subscribe(
                 val -> log.info("Subscriber received: {}"));
     }
 
