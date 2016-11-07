@@ -7,7 +7,6 @@ public class Part09BackpressureHandling implements BaseTestFlux {
 
 
 /*
-    private static final Logger log = LoggerFactory.getLogger(Part09BackpressureHandling.class);
 
     @Test
     public void throwingBackpressureNotSupported() {

@@ -2,8 +2,6 @@ package com.balamaci.reactor;
 
 import com.balamaci.reactor.util.Helpers;
 import org.junit.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -18,8 +16,6 @@ import java.util.concurrent.CountDownLatch;
  * @author sbalamaci
  */
 public class Part02SimpleOperators implements BaseTestFlux {
-
-    private static final Logger log = LoggerFactory.getLogger(Part02SimpleOperators.class);
 
     /**
      * Delay operator - the Thread.sleep of the reactive world, it's pausing for a particular increment of time
