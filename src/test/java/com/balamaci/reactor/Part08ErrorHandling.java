@@ -13,7 +13,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * The Observable contract specifies that exceptions are terminal operations.
  * There are however operator available for error flow control
  */
-public class Part08ErrorHandling implements BaseTestObservables {
+public class Part08ErrorHandling implements BaseTestFlux {
 
     private static final ConcurrentHashMap<String, AtomicInteger> attemptsMap = new ConcurrentHashMap<>();
 

@@ -1,10 +1,7 @@
 package com.balamaci.reactor;
 
 import com.balamaci.reactor.util.Helpers;
-import javaslang.collection.List;
 import org.junit.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import reactor.core.Cancellation;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -17,9 +14,7 @@ import java.util.stream.Stream;
  *
  * @author sbalamaci
  */
-public class Part01CreateFluxAndMono implements BaseTestObservables {
-
-    private static final Logger log = LoggerFactory.getLogger(Part01CreateFluxAndMono.class);
+public class Part01CreateFluxAndMono implements BaseTestFlux {
 
 
     @Test

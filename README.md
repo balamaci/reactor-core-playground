@@ -573,6 +573,31 @@ produces
 [main] - Subscriber got Completed event
 ```
 
+### Schedulers
+Reactor provides some high level concepts for concurrent execution, like ExecutorService we're not dealing
+with the low level constructs like creating the Threads ourselves. Instead we're using a **Scheduler** which create
+Workers who are responsible for scheduling and running code. By default Reactor will not introduce concurrency 
+and will run the operations on the subscription thread(the one that calls flux.subscribe(...)).
+
+There are two methods through which we can introduce Schedulers into our chain of operations:
+
+   - **subscribeOn** allows to specify which Scheduler invokes the code contained in the lambda code for Flux.create() -where the source runs
+    it's event producing code-.
+   - **publishOn** allows control to which Scheduler executes the code in the downstream operators
+
+Reactor provides some general use scheduler strategies:
+ 
+  - **Schedulers.parallel()** - good for parallelization in general. It uses a fixed threadpool, so backlog can increase
+  if there is congestion.
+  - **Schedulers.elastic()** - good for IO/blocking as it will pool threads and keep increasing the size of the pool if current threads are in use. 
+  Threads are cleared after some time being idle.     
+  - **Schedulers.from(Executor)** - custom ExecutorService
+  - **Schedulers.single()** - uses a single thread - equivalent of parallel(1)- should be good enough if the whole code is non blocking.
+ 
+Although we said by default Reactor doesn't introduce concurrency, lots of operators involve waiting like **delay**,
+**interval** need to run on a Scheduler, otherwise they would just block the subscribing thread. 
+By default **Schedulers.timer()** is used, but the Scheduler can be passed as a parameter.
+
 ## Advanced operators
 
 ### groupBy

@@ -12,7 +12,7 @@ import java.util.List;
 /**
  * @author sbalamaci
  */
-public class Part05AdvancedOperators implements BaseTestObservables {
+public class Part05AdvancedOperators implements BaseTestFlux {
 
     @Test
     public void buffer() {

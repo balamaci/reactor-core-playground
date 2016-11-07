@@ -17,7 +17,7 @@ import java.util.concurrent.CompletableFuture;
  *
  *
  */
-public class Part03MergingStreams implements BaseTestObservables {
+public class Part03MergingStreams implements BaseTestFlux {
 
     /**
      * Zip operator operates sort of like a zipper in the sense that it takes an event from one stream and waits

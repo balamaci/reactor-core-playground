@@ -3,11 +3,10 @@ package com.balamaci.reactor;
 /**
  * @author sbalamaci
  */
-public class Part09BackpressureHandling implements BaseTestObservables {
+public class Part09BackpressureHandling implements BaseTestFlux {
 
 
 /*
-    private static final Logger log = LoggerFactory.getLogger(Part09BackpressureHandling.class);
 
     @Test
     public void throwingBackpressureNotSupported() {
