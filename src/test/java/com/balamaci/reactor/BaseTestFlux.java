@@ -17,7 +17,7 @@ import java.util.function.Consumer;
 /**
  * @author sbalamaci
  */
-public interface BaseTestFlux {
+interface BaseTestFlux {
 
     Logger log = LoggerFactory.getLogger(BaseTestFlux.class);
 
@@ -39,7 +39,7 @@ public interface BaseTestFlux {
 
     default <T> void subscribeWithLog(Flux<T> flux) {
         flux.subscribe(
-                val -> log.info("Subscriber received: {}", val),
+                logNext(),
                 logErrorConsumer(),
                 logCompleteMethod()
         );
@@ -47,16 +47,16 @@ public interface BaseTestFlux {
 
     default <T> void subscribeWithLog(Mono<T> mono) {
         mono.subscribe(
-                val -> log.info("Subscriber received: {}", val),
+                logNext(),
                 logErrorConsumer(),
                 logCompleteMethod()
         );
     }
 
-    default void subscribeWithLogWaiting(Flux flux) {
+    default <T> void subscribeWithLogWaiting(Flux<T> flux) {
         CountDownLatch latch = new CountDownLatch(1);
         flux.subscribe(
-                val -> log.info("Subscriber received: {}", val),
+                logNext(),
                 logErrorConsumer(latch),
                 logCompleteMethod(latch)
         );
@@ -96,6 +96,17 @@ public interface BaseTestFlux {
                                               .doOnNext(val -> log.info("Received {} delaying for {} ", val, val.length()))
                                               .delay(Duration.of(item.length(), unit))
                             );
+    }
+
+    default <T> Consumer<? super T> logNext() {
+        return (Consumer<T>) val -> log.info("Subscriber received: {}", val);
+    }
+
+    default <T> Consumer<? super T> logNextAndSlowByMillis(int millis) {
+        return (Consumer<T>) val -> {
+            log.info("Subscriber received: {}", val);
+            Helpers.sleepMillis(millis);
+        };
     }
 
     default Consumer<Throwable> logErrorConsumer() {

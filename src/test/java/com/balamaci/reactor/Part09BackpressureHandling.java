@@ -1,27 +1,33 @@
 package com.balamaci.reactor;
 
+import com.balamaci.reactor.util.Helpers;
+import org.junit.Test;
+import reactor.core.publisher.Flux;
+import reactor.core.scheduler.Schedulers;
+
+import java.util.concurrent.CountDownLatch;
+
 /**
  * @author sbalamaci
  */
 public class Part09BackpressureHandling implements BaseTestFlux {
 
 
-/*
-
     @Test
     public void throwingBackpressureNotSupported() {
         CountDownLatch latch = new CountDownLatch(1);
 
-        Observable<Integer> observable = observableWithoutBackpressureSupport();
+        Flux<Integer> flux = observableWithoutBackpressureSupport()
+                .onBackpressureBuffer(30)
+                .onBackpressureDrop(val -> log.info("Dropped {}", val));
 
-        observable = observable
-                .observeOn(Schedulers.io());
-        subscribeWithSlowSubscriber(observable, latch);
+        flux = flux
+                .publishOn(Schedulers.newElastic("subscribe"));
+        subscribeWithSlowSubscriber(flux, latch);
 
         Helpers.wait(latch);
     }
 
-    */
 /**
      * Not only a slow subscriber triggers backpressure, but also a slow operator
      *//*
@@ -115,36 +121,26 @@ public class Part09BackpressureHandling implements BaseTestFlux {
 
         Helpers.wait(latch);
     }
+*/
 
 
-
-    private Observable<Integer> observableWithoutBackpressureSupport() {
-        return Observable.create(subscriber -> {
+    private Flux<Integer> observableWithoutBackpressureSupport() {
+        return Flux.create(subscriber -> {
             log.info("Started emitting");
 
-            for(int i=0; i < 200; i++) {
+            for(int i=0; i < 300; i++) {
                 log.info("Emitting {}", i);
-                subscriber.onNext(i);
+                subscriber.next(i);
             }
 
-            subscriber.onCompleted();
+            subscriber.complete();
         });
     }
 
-    private void subscribeWithSlowSubscriber(Observable observable, CountDownLatch latch ) {
-        observable.subscribe(val -> {
-                    log.info("Got {}", val);
-                    Helpers.sleepMillis(50);
-                },
-                err -> {
-                    log.error("Subscriber got error", err);
-                    latch.countDown();
-                },
-                () -> {
-                    log.info("Completed");
-                    latch.countDown();
-                });
+    private <T> void subscribeWithSlowSubscriber(Flux<T> observable, CountDownLatch latch ) {
+        observable.subscribe(logNextAndSlowByMillis(50),
+                logErrorConsumer(latch),
+                logCompleteMethod(latch));
     }
-*/
 
 }

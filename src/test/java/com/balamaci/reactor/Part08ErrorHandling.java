@@ -10,8 +10,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Exceptions are for exceptional situations.
- * The Observable contract specifies that exceptions are terminal operations.
- * There are however operator available for error flow control
+ * The ReactiveStreams contract specifies that exceptions are terminal operations.
+ *
+ * There are however operators available for error flow control
  */
 public class Part08ErrorHandling implements BaseTestFlux {
 

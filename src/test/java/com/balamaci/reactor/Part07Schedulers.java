@@ -71,7 +71,7 @@ public class Part07Schedulers implements BaseTestFlux {
         log.info("Starting");
 
         Flux<Integer> observable = simpleFlux()
-                .subscribeOn(Schedulers.newElastic("elastic-subscribe"))
+                .subscribeOn(Schedulers.newParallel("parallel-subscribe"))
                 .publishOn(Schedulers.newElastic("elastic-publish"))
                 .map(val -> {
                     int newValue = val * 2;
@@ -93,7 +93,7 @@ public class Part07Schedulers implements BaseTestFlux {
 
         Flux<Integer> observable = simpleFlux()
                 .subscribeOn(Schedulers.newElastic("subscribeA"))
-                .subscribeOn(Schedulers.newElastic("subscribeB"))
+                .subscribeOn(Schedulers.newParallel("subscribeB"))
                 .map(val -> {
                     int newValue = val * 2;
                     log.info("Mapping new val {}", newValue);

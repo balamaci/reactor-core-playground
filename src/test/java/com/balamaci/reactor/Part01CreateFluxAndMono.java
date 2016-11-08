@@ -1,6 +1,7 @@
 package com.balamaci.reactor;
 
 import com.balamaci.reactor.util.Helpers;
+import javaslang.collection.List;
 import org.junit.Test;
 import reactor.core.Cancellation;
 import reactor.core.publisher.Flux;
@@ -15,7 +16,6 @@ import java.util.stream.Stream;
  * @author sbalamaci
  */
 public class Part01CreateFluxAndMono implements BaseTestFlux {
-
 
     @Test
     public void just() {
@@ -77,10 +77,10 @@ public class Part01CreateFluxAndMono implements BaseTestFlux {
 
 
     /**
-     * Using Flux.create to handle the actual emissions of events with the events like onNext, onCompleted, onError
+     * Using Flux.create to handle the actual emissions of events with the events like onNext, onComplete, onError
      * <p>
      * When subscribing to the Flux with flux.subscribe() the lambda code inside create() gets executed.
-     * Flux.subscribe can take 3 handlers for each type of event - onNext, onError and onCompleted
+     * Flux.subscribe can take 3 handlers for each type of event - onNext, onError and onComplete
      * <p>
      * When using Flux.create you need to be aware of <b>Backpressure</b> and that Flux based on 'create' method
      * are not Backpressure aware {@see Part07BackpressureHandling}.
