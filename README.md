@@ -695,6 +695,8 @@ private Flux<String> simulateRemoteOperation(String color) {
 ### onErrorReturn
 
 The 'onErrorReturn' operator replaces an exception with a value:
+
+
 ```
 Flux<String> colors = Flux.just("green", "blue", "red", "white", "blue")
                 .flatMap(color -> simulateRemoteOperation(color))
@@ -739,8 +741,8 @@ returns:
 22:15:51 [main] INFO - Subscriber got Completed event
 ```
 
-### onErrorResumeNext
-onErrorResumeNext() returns a stream instead of an exception, useful for example to invoke a fallback 
+### onErrorResumeWith
+onErrorResumeWith() returns a stream instead of an exception, useful for example to invoke a fallback 
 method that returns also a stream
 
 ```

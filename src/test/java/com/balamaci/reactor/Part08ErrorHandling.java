@@ -40,12 +40,20 @@ public class Part08ErrorHandling implements BaseTestFlux {
 
 
     /**
-     * The 'onErrorReturn' operator doesn't prevent the unsubscription from the 'colors'
-     * but it does translate the exception for the downstream operators and the final Subscriber
-     * receives it in the 'onNext()' instead in 'onError()'
+     * The 'onErrorReturn' operator doesn't prevent the unsubscription from the 'numbers'
+     * and 'colors' stream of the map operator, but it does translate the exception
+     * for the downstream operators and the final Subscriber which receives it in the 'onNext()'
+     * instead in 'onError()'
      */
     @Test
-    public void onErrorReturnDoesntPrevent() {
+    public void onErrorReturnDoesntPreventUnsubscription() {
+        Flux<Integer> numbers = Flux.just("1", "3", "a", "4", "5", "c")
+                                    .map(Integer::parseInt) //parseInt throws NumberFormatException
+                                    .onErrorReturn(0);      //for non numeric values like "a", "c"
+        subscribeWithLog(numbers);
+
+        log.info("Another stream");
+
         Flux<String> colors = Flux.just("green", "blue", "red", "yellow", "blue")
                 .map(color -> {
                     if ("red".equals(color)) {
@@ -86,11 +94,11 @@ public class Part08ErrorHandling implements BaseTestFlux {
 
 
     /**
-     * onErrorResumeNext() returns a stream instead of an exception, useful for example
+     * onErrorResumeWith() returns a stream instead of an exception, useful for example
      * to invoke a fallback method that returns also a stream
      */
     @Test
-    public void onErrorResumeNext() {
+    public void onErrorResumeWith() {
         Flux<String> colors = Flux.just("green", "blue", "red", "white", "blue")
                 .flatMap(color -> simulateRemoteOperation(color)
                         .onErrorResumeWith(th -> {
