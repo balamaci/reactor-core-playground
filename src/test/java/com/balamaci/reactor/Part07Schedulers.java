@@ -10,32 +10,36 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * RxJava provides some high level concepts for concurrent execution, like ExecutorService we're not dealing
- * with the low level constructs like creating the Threads ourselves. Instead we're using a {@see reactor.Scheduler} which create
- * Workers who are responsible for scheduling and running code. By default RxJava will not introduce concurrency
- * and will run the operations on the subscription thread.
- *
+ * Reactor provides some high level concepts for concurrent execution, like ExecutorService we're not dealing
+ * with the low level constructs like creating the Threads ourselves. Instead we're using a **Scheduler** which create
+ * Workers who are responsible for scheduling and running code. By default Reactor will not introduce concurrency
+ * and will run the operations on the subscription thread(the one that calls flux.subscribe(...)).
  * There are two methods through which we can introduce Schedulers into our chain of operations:
- * - <b>subscribeOn allows to specify which Scheduler invokes the code contained in the lambda code for Observable.create()
- * - <b>publishOn</b> allows control to which Scheduler executes the code in the downstream operators
+ *     - <b>subscribeOn</b> allows to specify which Scheduler invokes the code contained in the lambda code for
+ *            Flux.create() - where the source runs it's event producing code-.
  *
- * RxJava provides some general use Schedulers already implemented:
- *  - Schedulers.computation() - to be used for CPU intensive tasks. A threadpool
- *  - Schedulers.io() - to be used for IO bound tasks
- *  - Schedulers.from(Executor) - custom ExecutorService
- *  - Schedulers.newThread() - always creates a new thread when a worker is needed. Since it's not thread pooled
- *  and always creates a new thread instead of reusing one, this scheduler is not very useful
+ *     - <b>publishOn</b> allows control to which Scheduler executes the code in the downstream operators
+
+ * Reactor provides some general use scheduler strategies:
+ *    - <b>Schedulers.parallel()</b> - good for parallelization in general. It uses a fixed threadpool,
+ *    so backlog can increase if there is congestion.
+ *    - <b>Schedulers.elastic()</b> - good for IO/blocking as it will pool threads and keep increasing the size of
+ *    the pool if current threads are in use.
+ *    Threads are cleared after some time being idle.
+ *    - <b>Schedulers.from(Executor)</b> - custom ExecutorService
+ *    - <b>Schedulers.single()</b> - uses a single thread - equivalent of parallel(1)-
+ *    should be good enough if the whole code is non blocking.
+
+ * Although we said by default Reactor doesn't introduce concurrency, lots of operators involve waiting like **delay**,
+ * **interval** need to run on a Scheduler, otherwise they would just block the subscribing thread.
+ * By default **Schedulers.timer()** is used, but the Scheduler can be passed as a parameter.
  *
- * Although we said by default RxJava doesn't introduce concurrency, some operators that involve waiting like 'delay',
- * 'interval' need to run on a Scheduler, otherwise they would just block the subscribing thread.
- * By default **Schedulers.computation()** is used, but the Scheduler can be passed as a parameter.
  *
- * @author sbalamaci
  */
 public class Part07Schedulers implements BaseTestFlux {
 
     /**
-     * subscribeOn allows to specify which Scheduler invokes the code contained in the lambda code for Observable.create()
+     * subscribeOn allows to specify which Scheduler invokes the code contained in the lambda code for Flux.create()
      */
     @Test
     public void testSubscribeOn() {
@@ -106,13 +110,13 @@ public class Part07Schedulers implements BaseTestFlux {
     /**
      * By using subscribeOn in flatMap you can control the thread on which flapMap subscribes to the particular
      * stream. By using a scheduler from a custom executor to which we allow a limited number of threads,
-     * we can also control how many concurrent threads are handling the stream operations inside the flatMap
+     * we can also control how many concurrent threads are handling stream operations inside the flatMap
      */
     @Test
     public void flatMapConcurrency() {
         log.info("Starting");
 
-        ExecutorService singleExecutor = Executors.newFixedThreadPool(2);
+        ExecutorService fixedThreadPool = Executors.newFixedThreadPool(2);
 
         Flux<String> observable = Flux.just("red", "green", "blue", "yellow", "orange")
                 .flatMap(color -> simulateRemoteOperationByUppercasing(color)
@@ -121,7 +125,7 @@ public class Part07Schedulers implements BaseTestFlux {
                                         log.info("Decorating {}", newValue);
                                         return newValue;
                                     })
-                                    .subscribeOn(Schedulers.fromExecutor(singleExecutor))
+                                    .subscribeOn(Schedulers.fromExecutor(fixedThreadPool))
                 );
 
         subscribeWithLogWaiting(observable);
