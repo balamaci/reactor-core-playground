@@ -9,10 +9,41 @@
    - [Schedulers](#schedulers)
    - [Error Handling](#error-handling)
 
+## Reactive Streams
+Reactive Streams is a programming concept for handling asynchronous 
+data streams in a non-blocking manner while providing backpressure to stream publishers.
+It has evolved into a [specification](https://github.com/reactive-streams/reactive-streams-jvm) that is based on the concept of **Publisher<T>** and **Subscriber<T>**.
+A **Publisher** is the source of events **T** in the stream, and a **Subscriber** is the consumer for those events.
+A **Subscriber** subscribes to a **Publisher** by invoking a "factory method" 
+```
+public interface Publisher<T> {
+    public void subscribe(Subscriber<? super T> s);
+}
+```
+in the Publisher that will push the stream items **<T>** starting a new **Subscription**.  
+
+When the Subscriber is ready to start handling events, it signals this via a request to that **Subscription** 
+Upon receiving this signal, the Publisher begins to invoke **Subscriber::onNext(T)** for each event **T**. 
+This continues until either completion of the stream (**Subscriber::onComplete()**) 
+or an error occurs during processing (**Subscriber::onError(Throwable)**).
+```
+public interface Subscriber<T> {
+    //signals to the Publisher to start sending events
+    public void onSubscribe(Subscription s);     
+    
+    public void onNext(T t);
+    public void onError(Throwable t);
+    public void onComplete();
+}
+```
 
 ## Flux and Mono
 Code is available at [Part01CreateFluxAndMono.java](https://github.com/balamaci/rxjava-playground/blob/master/src/test/java/com/balamaci/rx/.java)
 
+Reactor provides two main types of publishers: 
+    - **Flux** publisher that emits 0..N elements, and then completes (successfully or with an error)
+    - **Mono** a specialized publisher that can contain only 0 or 1 events and then completes (successfully or with an error)
+    
 ### Simple operators to create Flux
 
 ```
@@ -25,6 +56,16 @@ Flux<String> flux = Flux.fromIterable(List.of("red", "green", "blue"));
 /* from Java Stream */
 Stream<String> stream = Stream.of("red", "green");
 Flux<String> flux = Flux.fromStream(stream);
+```
+
+Streams that just complete(useful for saying an operation completed) are valid.
+```
+Flux.empty(); / Mono.empty();
+```
+
+so are streams that just throw an error
+```
+Flux.error(new IllegalStateException()); / Mono.error(new IllegalStateException());
 ```
 
 ### Mono from Future
@@ -58,8 +99,6 @@ Mono<String> response = Mono.fromFuture(completableFuture);
 
 Using **Flux.create** to handle the actual emissions of events with the events like **onNext**, **onCompleted**, **onError**
 
-When using Flux.create you need to be aware of [BackPressure]() and that created with 'create' are not BackPressure aware
-
 ``` 
 Flux<Integer> flux = Flux.create(subscriber -> {
     log.info("Started emitting");
@@ -73,7 +112,7 @@ Flux<Integer> flux = Flux.create(subscriber -> {
     subscriber.onCompleted();
 });
 
-flux.subscribe(
+Cancellation cancellation = flux.subscribe(
         val -> log.info("Subscriber received: {}", val),
         err -> log.error("Subscriber received error", err),
         () -> log.info("Subscriber got Completed event")
@@ -81,7 +120,7 @@ flux.subscribe(
 ```
 
 When subscribing to the Flux with flux.subscribe(...) the lambda code inside create() gets executed.
-Flux.subscribe(...) can take 3 handlers for each type of event - onNext, onError and onCompleted.
+Flux.subscribe(...) can take 3 handlers for each type of event - **onNext, onError** and **onComplete**.
 
 ### Flux and Mono are lazy 
 Flux and Mono are lazy, meaning that the code inside create() doesn't get executed without subscribing to the Flux.

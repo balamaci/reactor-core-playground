@@ -5,6 +5,7 @@ import javafx.util.Pair;
 import org.junit.Test;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.GroupedFlux;
+import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
 import java.time.Duration;
@@ -89,6 +90,22 @@ public class Part06FlatMapOperator implements BaseTestFlux {
                 .concatMap(val -> simulateRemoteOperation(val));
         subscribeWithLogWaiting(colors);
     }
+
+    /**
+     * Using concatMap to implement a variable delay in the stream.
+     * We'll use the stream values to set the delay and we can do it by creating a substream
+     * to which we subscribe with concatMap but we also 'delaySubscription' to achieve the
+     * required emission.
+     */
+    @Test
+    public void delayOperatorWithVariableDelay() {
+        Flux<Integer> delayedValues = Flux.range(0, 5)
+                                          .concatMap(val -> Mono.just(val)
+                                                                  .delaySubscription(Duration.of(val * 2,
+                                                                          ChronoUnit.SECONDS)));
+        subscribeWithLogWaiting(delayedValues);
+    }
+
 
     /**
      * When you have a Stream of Streams - Flux<Flux<T>>

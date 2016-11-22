@@ -45,22 +45,6 @@ public class Part02SimpleOperators implements BaseTestFlux {
     }
 
 
-    @Test
-    public void delayOperatorWithVariableDelay() {
-        CountDownLatch latch = new CountDownLatch(1);
-
-        Flux.range(0, 5)
-                .concatMap(val -> Mono.just(val).delaySubscription(Duration.of(val * 2, ChronoUnit.SECONDS)))
-                .subscribe(
-                        tick -> log.info("Tick {}", tick),
-                        (ex) -> log.info("Error emitted"),
-                        () -> {
-                            log.info("Completed");
-                            latch.countDown();
-                        });
-
-        Helpers.wait(latch);
-    }
 
     /**
      * Periodically emits a number starting from 0 and then increasing the value on each emission
@@ -87,7 +71,6 @@ public class Part02SimpleOperators implements BaseTestFlux {
      * scan operator - takes an initial value and a function(accumulator, currentValue). It goes through the events
      * sequence and combines the current event value with the previous result(accumulator) emitting downstream the
      * The initial value is used for the first event
-     *
      */
     @Test
     public void scanOperator() {
