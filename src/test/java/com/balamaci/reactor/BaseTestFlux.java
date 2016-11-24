@@ -5,13 +5,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import rx.Observable;
 
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalUnit;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 /**
@@ -84,10 +82,6 @@ interface BaseTestFlux {
         return Flux.zip(itemsStream, timer, (key, val) -> key);
     }
 
-    default  <T> Observable<T> periodicEmitter(T[] items, int interval,
-                                               TimeUnit unit) {
-        return periodicEmitter(items, interval, unit);
-    }
 
     default  Flux<String> delayedByLengthEmitter(ChronoUnit unit, String...items) {
         Flux<String> itemsStream = Flux.fromArray(items);

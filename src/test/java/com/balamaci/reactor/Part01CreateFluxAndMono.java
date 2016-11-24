@@ -27,10 +27,9 @@ public class Part01CreateFluxAndMono implements BaseTestFlux {
 
     @Test
     public void range() {
-        Flux<Integer> observable = Flux.range(1, 10);
-
-        observable.subscribe(
-                val -> log.info("Subscriber received: {}", val));
+        Flux<Integer> flux = Flux.range(1, 10);
+        flux.subscribe(
+                val -> log.info("Subscriber received: {}", val), 5);
     }
 
     @Test
@@ -74,7 +73,6 @@ public class Part01CreateFluxAndMono implements BaseTestFlux {
         Mono<String> mono = Mono.fromFuture(completableFuture);
         mono.subscribe(val -> log.info("Subscriber received: {}", val));
     }
-
 
     /**
      * Using Flux.create to handle the actual emissions of events with the events like onNext, onComplete, onError
@@ -205,9 +203,5 @@ public class Part01CreateFluxAndMono implements BaseTestFlux {
                         () -> log.info("Subscriber got Completed event") //The Complete event is triggered by 'take()' operator
         );
     }
-
-
-//    @Test
-//    public
 
 }

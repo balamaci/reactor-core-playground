@@ -2,7 +2,10 @@ package com.balamaci.reactor;
 
 import com.balamaci.reactor.util.Helpers;
 import org.junit.Test;
+import org.reactivestreams.Subscriber;
+import org.reactivestreams.Subscription;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.FluxSink;
 import reactor.core.scheduler.Schedulers;
 
 import java.util.concurrent.CountDownLatch;
@@ -13,13 +16,23 @@ import java.util.concurrent.CountDownLatch;
 public class Part09BackpressureHandling implements BaseTestFlux {
 
 
+
+    @Test
+    public void customBackpressureAwareFlux() {
+        Flux<Integer> flux = new CustomFlux(5, 10).log();
+
+        flux.subscribe(
+                val -> log.info("Subscriber received: {}", val), 3);
+    }
+
     @Test
     public void throwingBackpressureNotSupported() {
         CountDownLatch latch = new CountDownLatch(1);
 
-        Flux<Integer> flux = observableWithoutBackpressureSupport()
-                .onBackpressureBuffer(30)
-                .onBackpressureDrop(val -> log.info("Dropped {}", val));
+        Flux<Integer> flux = observableWithoutBackpressureSupport();
+//                .log()
+//                .onBackpressureBuffer(30)
+//                .onBackpressureDrop(val -> log.info("Dropped {}", val));
 
         flux = flux
                 .publishOn(Schedulers.newElastic("subscribe"));
@@ -29,8 +42,8 @@ public class Part09BackpressureHandling implements BaseTestFlux {
     }
 
 /**
-     * Not only a slow subscriber triggers backpressure, but also a slow operator
-     *//*
+ * Not only a slow subscriber triggers backpressure, but also a slow operator
+ *//*
 
     @Test
     public void throwingBackpressureNotSupportedSlowOperator() {
@@ -52,8 +65,8 @@ public class Part09BackpressureHandling implements BaseTestFlux {
 
     */
 /**
-     * Subjects are also not backpressure aware
-     *//*
+ * Subjects are also not backpressure aware
+ *//*
 
     @Test
     public void throwingBackpressureNotSupportedSubject() {
@@ -74,7 +87,8 @@ public class Part09BackpressureHandling implements BaseTestFlux {
     }
 
     */
-/**
+
+    /**
      * Zipping a slow stream with a faster one also can cause a backpressure problem
      *//*
 
@@ -123,24 +137,82 @@ public class Part09BackpressureHandling implements BaseTestFlux {
     }
 */
 
+    private class CustomFlux extends Flux<Integer> {
 
-    private Flux<Integer> observableWithoutBackpressureSupport() {
-        return Flux.create(subscriber -> {
-            log.info("Started emitting");
+        private int startFrom;
+        private int count;
 
-            for(int i=0; i < 300; i++) {
-                log.info("Emitting {}", i);
-                subscriber.next(i);
+        CustomFlux(int startFrom, int count) {
+            this.startFrom = startFrom;
+            this.count = count;
+        }
+
+        @Override
+        public void subscribe(Subscriber<? super Integer> subscriber) {
+            subscriber.onSubscribe(new CustomRangeSubscription(startFrom, count, subscriber));
+        }
+
+        class CustomRangeSubscription implements Subscription {
+
+            volatile boolean cancelled;
+            private int count;
+            private int currentCount;
+            private int startFrom;
+
+            private Subscriber<? super Integer> actualSubscriber;
+
+            CustomRangeSubscription(int startFrom, int count, Subscriber<? super Integer> actualSubscriber) {
+                this.count = count;
+                this.startFrom = startFrom;
+                this.actualSubscriber = actualSubscriber;
             }
 
-            subscriber.complete();
-        });
+            @Override
+            public void request(long items) {
+                for(int i=0; i < items; i++) {
+                    if(cancelled) {
+                        return;
+                    }
+
+                    if(currentCount == count) {
+                        actualSubscriber.onComplete();
+                        return;
+                    }
+
+                    actualSubscriber.onNext(startFrom + currentCount);
+
+                    currentCount++;
+                }
+            }
+
+            @Override
+            public void cancel() {
+                cancelled = true;
+            }
+        }
     }
 
-    private <T> void subscribeWithSlowSubscriber(Flux<T> observable, CountDownLatch latch ) {
-        observable.subscribe(logNextAndSlowByMillis(50),
-                logErrorConsumer(latch),
-                logCompleteMethod(latch));
-    }
+        private Flux<Integer> observableWithoutBackpressureSupport() {
+            return Flux.create(subscriber -> {
+                log.info("Started emitting");
+
+                for (int i = 0; i < 300; i++) {
+                    if (subscriber.isCancelled()) {
+                        return;
+                    }
+                    log.info("Emitting {}", i);
+                    subscriber.next(i);
+                }
+
+                subscriber.complete();
+            }, FluxSink.OverflowStrategy.ERROR);
+        }
+
+        private <T> void subscribeWithSlowSubscriber(Flux<T> observable, CountDownLatch latch) {
+            observable.subscribe(logNextAndSlowByMillis(50),
+                    logErrorConsumer(latch),
+                    logCompleteMethod(latch));
+        }
+
 
 }

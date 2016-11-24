@@ -8,19 +8,26 @@
    - [FlatMap Operator](#flatmap-operator)
    - [Schedulers](#schedulers)
    - [Error Handling](#error-handling)
+   - [Backpressure](#backpressure)
 
 ## Reactive Streams
 Reactive Streams is a programming concept for handling asynchronous 
 data streams in a non-blocking manner while providing backpressure to stream publishers.
 It has evolved into a [specification](https://github.com/reactive-streams/reactive-streams-jvm) that is based on the concept of **Publisher<T>** and **Subscriber<T>**.
 A **Publisher** is the source of events **T** in the stream, and a **Subscriber** is the consumer for those events.
-A **Subscriber** subscribes to a **Publisher** by invoking a "factory method" 
+A **Subscriber** subscribes to a **Publisher** by invoking a "factory method" :
 ```
 public interface Publisher<T> {
     public void subscribe(Subscriber<? super T> s);
 }
 ```
 in the Publisher that will push the stream items **<T>** starting a new **Subscription**.  
+```
+public interface Subscription {
+    public void request(long n); //request n items
+    public void cancel();
+}
+```
 
 When the Subscriber is ready to start handling events, it signals this via a request to that **Subscription** 
 Upon receiving this signal, the Publisher begins to invoke **Subscriber::onNext(T)** for each event **T**. 
@@ -38,11 +45,9 @@ public interface Subscriber<T> {
 ```
 
 ## Flux and Mono
-Code is available at [Part01CreateFluxAndMono.java](https://github.com/balamaci/rxjava-playground/blob/master/src/test/java/com/balamaci/rx/.java)
-
 Reactor provides two main types of publishers: 
-    - **Flux** publisher that emits 0..N elements, and then completes (successfully or with an error)
-    - **Mono** a specialized publisher that can contain only 0 or 1 events and then completes (successfully or with an error)
+   - **Flux** publisher that emits 0..N elements, and then completes (successfully or with an error)
+   - **Mono** a specialized publisher that can contain only 0 or 1 events and then completes (successfully or with an error)
     
 ### Simple operators to create Flux
 
@@ -58,33 +63,35 @@ Stream<String> stream = Stream.of("red", "green");
 Flux<String> flux = Flux.fromStream(stream);
 ```
 
-Streams that just complete(useful for saying an operation completed) are valid.
+Streams that just complete without emitting a value are valid - useful for example to say that a DB update completed(or failed)-.
 ```
 Flux.empty(); / Mono.empty();
 ```
 
-so are streams that just throw an error
+so are streams that just complete with an error
 ```
 Flux.error(new IllegalStateException()); / Mono.error(new IllegalStateException());
 ```
+
+Code is available at [Part01CreateFluxAndMono.java](https://github.com/balamaci/reactor-core-playground/blob/master/src/test/java/com/balamaci/reactor/Part01CreateFluxAndMono.java)
 
 ### Mono from Future
 We can also create a stream from Future, making easier to switch from legacy code to reactive
 Since **CompletableFuture**/**Future** can only return a single result, **Mono** is the returned type when converting
 from a Future
 
-**Mono** is a Flux that emits a single event(or no events) and completes. Can be useful to express in an API that a 
-single/no value(just completion notification) value is expected.
+**Mono** is a Flux that emits a single event and completes, or emits no events(just completes). 
+Can be useful to express in an API that a single/no value(just completion notification) value is expected.
 
 ```
-public Mono<Long> getId() {..} //better to express the intent than
+public Mono<Long> getId() {..} // -> better express of the fact we expect a single value
 
-public Flux<Long> getId() {..} 
+public Flux<Long> getId() {..} // -> not clear that we'd expect a single value 
 ```
 
 ```
 CompletableFuture<String> completableFuture = CompletableFuture
-            .supplyAsync(() -> { //starts a background thread the ForkJoin common pool
+            .supplyAsync(() -> { // -> starts a background thread the ForkJoin common pool
                     log.info("CompletableFuture work starts");  
                     Helpers.sleepMillis(100);
                     return "red";
@@ -92,8 +99,6 @@ CompletableFuture<String> completableFuture = CompletableFuture
 
 Mono<String> response = Mono.fromFuture(completableFuture);
 ```
-
-**Mono** and **Flux** both implement the **Publisher** interface from the [Reactive Streams](https://github.com/reactive-streams/reactive-streams-jvm) specification.
 
 ### Creating your own Flux
 
@@ -113,9 +118,9 @@ Flux<Integer> flux = Flux.create(subscriber -> {
 });
 
 Cancellation cancellation = flux.subscribe(
-        val -> log.info("Subscriber received: {}", val),
-        err -> log.error("Subscriber received error", err),
-        () -> log.info("Subscriber got Completed event")
+        val -> log.info("Subscriber received: {}", val),    //--> onNext
+        err -> log.error("Subscriber received error", err), //--> onError
+        () -> log.info("Subscriber got Completed event")    //--> onComplete
 );
 ```
 
@@ -139,7 +144,7 @@ public void fluxIsLazy() {
 ```
 
 ### Multiple subscriptions to the same Flux 
-When subscribing to a Flux, the create() method gets executed for each subscription. This means that the events 
+When subscribing to a Flux, the *create()* method gets executed for each subscription. This means that the events 
 inside create are re-emitted to each subscriber. 
 
 So every subscriber will get the same events and will not lose any events - this behavior is named **'cold observable'**
@@ -735,7 +740,6 @@ private Flux<String> simulateRemoteOperation(String color) {
 
 The 'onErrorReturn' operator replaces an exception with a value:
 
-
 ```
 Flux<String> colors = Flux.just("green", "blue", "red", "white", "blue")
                 .flatMap(color -> simulateRemoteOperation(color))
@@ -917,4 +921,154 @@ colors.flatMap(colorName ->
 15:20:29 [RxComputationScheduler-2] INFO - Emitting RuntimeException for red
 15:20:29 [main] INFO - Subscriber received: generic color
 15:20:29 [main] INFO - Subscriber got Completed event
+```
+
+## Backpressure
+
+It can be the case of a slow consumer that cannot keep up with the producer that is producing too many events
+that the subscriber cannot process. 
+
+Backpressure relates to a feedback mechanism through which the subscriber can signal to the producer how much data 
+it can consume.
+
+The [reactive-streams]() section above we saw that besides the onNext, onError and onComplete handlers, the Subscriber
+has an **onSubscribe** method.
+ 
+```
+public interface Subscriber<T> {
+    //signals to the Publisher to start sending events
+    public void onSubscribe(Subscription s);     
+    
+    public void onNext(T t);
+    public void onError(Throwable t);
+    public void onComplete();
+}
+```
+
+"When the Subscriber is ready to start handling events, it signals this via a request to that **Subscription**" 
+```
+public interface Subscription {
+    public void request(long n); //request n items
+    public void cancel();
+}
+```
+So in theory the Subscriber can prevent being overloaded by requesting an initial number of items. The Publisher would
+send those items downstream and not produce any more, until the Subscriber would request more. We say in theory because
+until now we did not see a custom **onSubscribe** request being implemented. This is because if not specified explicitly,
+there is a default implementation which requests of Integer.MAX_VALUE which basically means "send all you have".
+
+Neither did we see the code in the producer that takes consideration of the number of items requested by the subscriber. 
+```
+Flux.create(subscriber -> {
+      log.info("Started emitting");
+
+      for(int i=0; i < 300; i++) {
+           if(subscriber.isCanceled()) {
+              return;
+           }
+           log.info("Emitting {}", i);
+           subscriber.next(i);
+      }
+
+      subscriber.complete();
+}
+```
+Looks like it's not possible to slow down production based on request(as there is no reference to the requested items),
+we can at most stop production if the subscriber canceled subscription. 
+
+This can be done, however if we extend Flux/Mono we can pass our custom Subscription type to the downstream subscriber:  
+```
+class CustomFlux extends Flux<Integer> {
+    private int startFrom;
+    private int count;
+
+    CustomFlux(int startFrom, int count) {
+        this.startFrom = startFrom;
+        this.count = count;
+    }
+
+    @Override
+    public void subscribe(Subscriber<? super Integer> subscriber) {
+        subscriber.onSubscribe(
+                    new CustomRangeSubscription(startFrom, count, subscriber));
+    }
+}
+
+private class CustomRangeSubscription implements Subscription {
+
+     volatile boolean cancelled;
+     private int count;
+     private int currentCount;
+     private int startFrom;
+
+     private Subscriber<? super Integer> actualSubscriber;
+
+     CustomRangeSubscription(int startFrom, int count, 
+                                    Subscriber<? super Integer> actualSubscriber) {
+           this.count = count;
+           this.startFrom = startFrom;
+           this.actualSubscriber = actualSubscriber;
+     }
+
+     @Override
+     public void request(long items) {
+           for(int i=0; i < items; i++) {
+               if(cancelled) {
+                    return;
+               }
+
+               if(currentCount == count) {
+                    actualSubscriber.onComplete();
+                    return;
+               }
+
+               actualSubscriber.onNext(startFrom + currentCount);
+
+               currentCount++;
+           }
+     }
+
+     @Override
+     public void cancel() {
+           cancelled = true;
+     }
+}
+```
+and using our custom Flux that knows to produce just what the Subscriber can process:
+```
+Flux<Integer> flux = new CustomFlux(5, 10)
+                             .log();
+
+//we request a limited number of items
+flux.subscribe(val -> log.info("Subscriber received: {}", val), 3);
+```
+```
+[main] - onSubscribe(com.balamaci.reactor.Part09BackpressureHandling$CustomFlux$CustomRangeSubscription@7f560810)
+[main] - request(3)
+[main] - onNext(5)
+[main] - Subscriber received: 5
+[main] - onNext(6)
+[main] - Subscriber received: 6
+[main] - onNext(7)
+[main] - Subscriber received: 7
+[main] - request(3)
+[main] - onNext(7)
+[main] - onNext(8)
+[main] - onNext(9)
+[main] - Subscriber received: 7
+[main] - Subscriber received: 8
+[main] - Subscriber received: 9
+[main] - request(3)
+[main] - onNext(10)
+[main] - onNext(11)
+[main] - onNext(12)
+[main] - Subscriber received: 10
+[main] - Subscriber received: 11
+[main] - Subscriber received: 12
+[main] - request(3)
+[main] - onNext(13)
+[main] - onNext(14)
+[main] - onComplete()
+[main] - Subscriber received: 13
+[main] - Subscriber received: 14
 ```
