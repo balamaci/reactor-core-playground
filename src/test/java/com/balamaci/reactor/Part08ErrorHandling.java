@@ -16,8 +16,6 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class Part08ErrorHandling implements BaseTestFlux {
 
-    private static final ConcurrentHashMap<String, AtomicInteger> attemptsMap = new ConcurrentHashMap<>();
-
     /**
      * After the map() operator encounters an error, it triggers the error handler
      * in the map operator, which also unsubscribes(cancels the subscription) from the stream,
@@ -208,6 +206,9 @@ public class Part08ErrorHandling implements BaseTestFlux {
 
         subscribeWithLogWaiting(colors);
     }
+
+
+    private static final ConcurrentHashMap<String, AtomicInteger> attemptsMap = new ConcurrentHashMap<>();
 
     private Flux<String> simulateRemoteOperation(String color, int workAfterAttempts) {
         return Flux.create(subscriber -> {

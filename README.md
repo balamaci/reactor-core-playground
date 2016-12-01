@@ -931,8 +931,8 @@ that the subscriber cannot process.
 Backpressure relates to a feedback mechanism through which the subscriber can signal to the producer how much data 
 it can consume.
 
-The [reactive-streams]() section above we saw that besides the onNext, onError and onComplete handlers, the Subscriber
-has an **onSubscribe** method.
+The [reactive-streams](https://github.com/reactive-streams/reactive-streams-jvm) section above we saw that besides the onNext, onError and onComplete handlers, the Subscriber
+has an **onSubscribe(Subscription)**
  
 ```
 public interface Subscriber<T> {
@@ -944,8 +944,9 @@ public interface Subscriber<T> {
     public void onComplete();
 }
 ```
+Subscription through which it can signal upstream it's ready to receive a number of items and after it
+processes the items request another batch.
 
-"When the Subscriber is ready to start handling events, it signals this via a request to that **Subscription**" 
 ```
 public interface Subscription {
     public void request(long n); //request n items
@@ -976,7 +977,7 @@ Flux.create(subscriber -> {
 Looks like it's not possible to slow down production based on request(as there is no reference to the requested items),
 we can at most stop production if the subscriber canceled subscription. 
 
-This can be done, however if we extend Flux/Mono we can pass our custom Subscription type to the downstream subscriber:  
+This can be done if we extend Flux/Mono so we can pass our custom Subscription type to the downstream subscriber:  
 ```
 class CustomFlux extends Flux<Integer> {
     private int startFrom;
@@ -1034,16 +1035,17 @@ private class CustomRangeSubscription implements Subscription {
      }
 }
 ```
-and using our custom Flux that knows to produce just what the Subscriber can process:
+
+and using our custom Flux that knows to produce just so many items that the Subscriber **requests**:
 ```
 Flux<Integer> flux = new CustomFlux(5, 10)
                              .log();
 
 //we request a limited number of items
 flux.subscribe(val -> log.info("Subscriber received: {}", val), 3);
-```
-```
-[main] - onSubscribe(com.balamaci.reactor.Part09BackpressureHandling$CustomFlux$CustomRangeSubscription@7f560810)
+
+[main] - onSubscribe(com.balamaci.reactor.Part09BackpressureHandling
+                        $CustomFlux$CustomRangeSubscription@7f560810)
 [main] - request(3)
 [main] - onNext(5)
 [main] - Subscriber received: 5
@@ -1072,3 +1074,81 @@ flux.subscribe(val -> log.info("Subscriber received: {}", val), 3);
 [main] - Subscriber received: 13
 [main] - Subscriber received: 14
 ```
+So does it mean that streams created with _Flux.create()_ are destined to failed for a slow subscriber?  
+And what about hot publishers(that emit indifferent of any subscribers listening)?
+If we look at the definition of _Flux.create()_ 
+```
+public static <T> Flux<T> create(Consumer<? super FluxSink<T>> emitter) {
+	return create(emitter, OverflowStrategy.BUFFER);
+}
+```
+there is this OverflowStrategy that specifies how to deal with too many events that overflow the consumers:
+   - OverflowStrategy.BUFFER buffer in memory the events that overflow. Of course is we don't drop over some threshold, it might lead to OufOfMemory. 
+   - OverflowStrategy.DROP just drop the overflowing events
+   - OverflowStrategy.LATEST drop queued older events and keep more recent
+   - OverflowStrategy.ERROR we get an error in the subscriber immediately 
+    
+Still what does it mean to 'overflow' in the first place? It means to emit more items than requested downstream.
+But we said that by default the subscriber requests Integer.MAX_VALUE, so unless we override the request number 
+it means it would never overflow. True, but between the Publisher and the Subscriber you'd have a series of operators. 
+When we subscribe, a Subscriber travels up through all operators to the original Publisher and some operators override 
+the requested items. One such operator is **publishOn**() which makes it's own request to the upstream Publisher(256 by default),
+but also allows takes a parameter to specify 
+ 
+Let's see:
+```
+Flux<Integer> publisher = Flux.create(subscriber -> {
+      log.info("Started emitting");
+
+      for(int i=0; i < 10; i++) {
+           log.info("Emitting {}", i);
+           subscriber.next(i);
+      }
+
+      subscriber.complete();
+}, OverflowStrategy.DROP);
+
+publisher = publisher.log()
+                     .publishOn(Schedulers.newElastic("elast"), 5);
+
+
+publisher.subscribe(val -> {
+                      log.info("Subscriber received: {}", val);
+                      Helpers.sleepMillis(50); //slow down 
+                  });
+
+=======================
+[main] 1 - onSubscribe(reactor.core.publisher.FluxCreate$DropAsyncSink@50c87b21)
+[main] 1 - request(5)
+[main] BaseTestFlux - Started emitting
+[main] BaseTestFlux - Emitting 0
+[main] 1 - onNext(0)
+[main] BaseTestFlux - Emitting 1
+[main] 1 - onNext(1)
+[main] BaseTestFlux - Emitting 2
+[main] 1 - onNext(2)
+[elast-2] BaseTestFlux - Subscriber received: 0
+[main] BaseTestFlux - Emitting 3
+[main] 1 - onNext(3)
+[main] BaseTestFlux - Emitting 4
+[main] 1 - onNext(4)
+[main] BaseTestFlux - Emitting 5
+[main] BaseTestFlux - Emitting 6
+[main] BaseTestFlux - Emitting 7
+[main] BaseTestFlux - Emitting 8
+[main] BaseTestFlux - Emitting 9
+[main] 1 - onComplete()
+[elast-2] BaseTestFlux - Subscriber received: 1
+[elast-2] BaseTestFlux - Subscriber received: 2
+[elast-2] BaseTestFlux - Subscriber received: 3
+[elast-2] 1 - request(4)
+[elast-2] BaseTestFlux - Subscriber received: 4
+```
+Notice how the log show that the request to the source Flux.create(..) is for 5(as requested in _publishOn_), 
+not the Integer.MAX_VALUE(which is the default) and also that overflown events(produced over the 5 requested), were dropped as they were not received by the
+onNext callback in the Subscriber. 
+You may think that publishOn was force put there just for the sake of showing an example of overriding number of requests in an operator, 
+but it's because we need _publishOn_ to have the producer and consumer use different threads. 
+If both of them would have used the same thread, we could not have an overflow scenario where the producer is 
+emitting faster(since it has to wait for the subscriber).
+
