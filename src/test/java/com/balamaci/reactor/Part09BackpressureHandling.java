@@ -52,20 +52,34 @@ public class Part09BackpressureHandling implements BaseTestFlux {
       */
     @Test
     public void backpressureStrategyTriggeredBySlowOperator() {
-        CountDownLatch latch = new CountDownLatch(1);
-
-        Flux<String> flux = createFlux(10, FluxSink.OverflowStrategy.DROP)
+        Flux<String> flux = createFlux(20, FluxSink.OverflowStrategy.IGNORE)
                 .onBackpressureDrop(overflowVal -> log.info("Dropped {}", overflowVal))
+                .onBackpressureBuffer(5)
                 .log()
-                .publishOn(Schedulers.newElastic("elast"), 5)
+                .publishOn(Schedulers.newElastic("elast"), 2)
                 .map(val -> {
                     Helpers.sleepMillis(1000);
                     return "*" + val + "*";
                 });
         subscribeWithLogWaiting(flux);
-
-        Helpers.wait(latch);
     }
+
+    @Test
+    public void cascadingBackpressureOperators() {
+        CountDownLatch latch = new CountDownLatch(1);
+
+        Flux<Integer> flux = createFlux(20, FluxSink.OverflowStrategy.IGNORE)
+                .onBackpressureBuffer(5)
+                .log()
+                .limitRate(10)
+                .onBackpressureDrop(overflowVal -> log.info("Dropped {}", overflowVal))
+                .log()
+                .publishOn(Schedulers.newElastic("elast"), 5);
+        subscribeWithSlowSubscriber(flux, latch);
+        Helpers.wait(latch);
+
+    }
+
 
     @Test
     public void fluxWithCustomLogicOnBackpressureBuffer() {
@@ -82,29 +96,7 @@ public class Part09BackpressureHandling implements BaseTestFlux {
         Helpers.wait(latch);
     }
 
-/**
- * Subjects are also not backpressure aware
- *//*
 
-    @Test
-    public void throwingBackpressureNotSupportedSubject() {
-        CountDownLatch latch = new CountDownLatch(1);
-
-        PublishSubject<Integer> subject = PublishSubject.create();
-
-        Observable<Integer> observable = subject
-                .observeOn(Schedulers.io());
-        subscribeWithSlowSubscriber(observable, latch);
-
-        for(int i=0; i < 200; i++) {
-            log.info("Emitting {}", i);
-            subject.onNext(i);
-        }
-
-        Helpers.wait(latch);
-    }
-
-    */
 
     /**
      * Zipping a slow stream with a faster one also can cause a backpressure problem

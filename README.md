@@ -979,11 +979,11 @@ we can at most stop production if the subscriber canceled subscription.
 
 This can be done if we extend Flux/Mono so we can pass our custom Subscription type to the downstream subscriber:  
 ```
-class CustomFlux extends Flux<Integer> {
+class CustomRangeFlux extends Flux<Integer> {
     private int startFrom;
     private int count;
 
-    CustomFlux(int startFrom, int count) {
+    CustomRangeFlux(int startFrom, int count) {
         this.startFrom = startFrom;
         this.count = count;
     }
@@ -1036,7 +1036,7 @@ private class CustomRangeSubscription implements Subscription {
 }
 ```
 
-and using our custom Flux that knows to produce just so many items that the Subscriber **requests**:
+and using our custom Flux that knows to produce just as many items that the Subscriber **requests**:
 ```
 Flux<Integer> flux = new CustomFlux(5, 10)
                              .log();
@@ -1076,6 +1076,7 @@ flux.subscribe(val -> log.info("Subscriber received: {}", val), 3);
 ```
 So does it mean that streams created with _Flux.create()_ are destined to failed for a slow subscriber?  
 And what about hot publishers(that emit indifferent of any subscribers listening)?
+
 If we look at the definition of _Flux.create()_ 
 ```
 public static <T> Flux<T> create(Consumer<? super FluxSink<T>> emitter) {
@@ -1093,7 +1094,7 @@ But we said that by default the subscriber requests Integer.MAX_VALUE, so unless
 it means it would never overflow. True, but between the Publisher and the Subscriber you'd have a series of operators. 
 When we subscribe, a Subscriber travels up through all operators to the original Publisher and some operators override 
 the requested items. One such operator is **publishOn**() which makes it's own request to the upstream Publisher(256 by default),
-but also allows takes a parameter to specify 
+but can take a parameter to specify the request size.
  
 Let's see:
 ```
