@@ -80,8 +80,7 @@ public class Part01CreateFluxAndMono implements BaseTestFlux {
      * When subscribing to the Flux with flux.subscribe() the lambda code inside create() gets executed.
      * Flux.subscribe can take 3 handlers for each type of event - onNext, onError and onComplete
      * <p>
-     * When using Flux.create you need to be aware of <b>Backpressure</b> and that Flux based on 'create' method
-     * are not Backpressure aware {@see Part07BackpressureHandling}.
+     * When using Flux.create you need to be aware of <b>Backpressure</b> {@see Part07BackpressureHandling}.
      */
     @Test
     public void createSimpleFlux() {

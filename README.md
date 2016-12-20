@@ -13,7 +13,7 @@
 ## Reactive Streams
 Reactive Streams is a programming concept for handling asynchronous 
 data streams in a non-blocking manner while providing backpressure to stream publishers.
-It has evolved into a [specification](https://github.com/reactive-streams/reactive-streams-jvm) that is based on the concept of **Publisher<T>** and **Subscriber<T>**.
+It has evolved into a [specification](https://github.com/reactive-streams/reactive-streams-jvm) that is based on the concept of **Publisher**&lt;T&gt;** and **Subscriber<T>**.
 A **Publisher** is the source of events **T** in the stream, and a **Subscriber** is the consumer for those events.
 A **Subscriber** subscribes to a **Publisher** by invoking a "factory method" :
 ```
@@ -21,7 +21,7 @@ public interface Publisher<T> {
     public void subscribe(Subscriber<? super T> s);
 }
 ```
-in the Publisher that will push the stream items **<T>** starting a new **Subscription**.  
+in the Publisher that will push the stream items **&lt;T&gt;** starting a new **Subscription**.  
 ```
 public interface Subscription {
     public void request(long n); //request n items
@@ -228,7 +228,7 @@ before emitting the events which are thus shifted by the specified time amount.
 
 The delay operator uses a [Scheduler](#schedulers) by default, which actually means it's
 running the operators and the subscribe operations on a different thread and so the test method
-will terminate before we see the text from the log.
+will terminate before we see the text from the log.(Not doing so would have blocked )
 
 
 ### interval
@@ -633,8 +633,8 @@ Reactor provides some general use scheduler strategies:
  
   - **Schedulers.parallel()** - good for parallelization in general. It uses a fixed threadpool, so backlog can increase
   if there is congestion.
-  - **Schedulers.elastic()** - good for IO/blocking as it will pool threads and keep increasing the size of the pool if current threads are in use. 
-  Threads are cleared after some time being idle.     
+  - **Schedulers.elastic()** - scheduler that adjusts its capacity according to demand. Good for IO/blocking as it will 
+  pool threads and keep increasing the size of the pool if current threads are in use. Threads are cleared after some time being idle.     
   - **Schedulers.from(Executor)** - custom ExecutorService
   - **Schedulers.single()** - uses a single thread - equivalent of parallel(1)- should be good enough if the whole code is non blocking.
  
@@ -648,10 +648,11 @@ By default **Schedulers.timer()** is used, but the Scheduler can be passed as a 
 groupBy splits a stream into multiple streams(a stream of streams), by a grouping function which provides the key
 for the grouping. These substreams are GroupedFlux which consists of the grouping key and a value.
 
-```
+```java
 //the stream of events is transformed into a stream of streams
 Flux<T>  ->  Flux<GroupedFlux<K, T>>
 ```
+
 ![groupBy](https://raw.githubusercontent.com/reactor/projectreactor.io/master/src/main/static/assets/img/marble/groupby.png)
 
 
