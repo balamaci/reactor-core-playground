@@ -65,8 +65,9 @@ public class Part06FlatMapOperator implements BaseTestFlux {
 
     /**
      * Controlling the level of concurrency of the substreams.
-     * In the ex. below, only the first two substreams(the Flux returned by simulateRemoteOperation)
-     * are subscribed. As soon as one of them completes, another substream is subscribed.
+     *
+     * In the ex. below, only the first substream(the Flux returned by simulateRemoteOperation) is subscribed.
+     * As soon as it completes, another substream is subscribed and so on.
      *
      */
     @Test

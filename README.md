@@ -957,7 +957,7 @@ public interface Subscription {
 So in theory the Subscriber can prevent being overloaded by requesting an initial number of items. The Publisher would
 send those items downstream and not produce any more, until the Subscriber would request more. We say in theory because
 until now we did not see a custom **onSubscribe** request being implemented. This is because if not specified explicitly,
-there is a default implementation which requests of Integer.MAX_VALUE which basically means "send all you have".
+there is a default implementation which requests of **Integer.MAX_VALUE** which basically means "send all you have".
 
 Neither did we see the code in the producer that takes consideration of the number of items requested by the subscriber. 
 ```
