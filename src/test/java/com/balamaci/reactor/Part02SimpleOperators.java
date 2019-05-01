@@ -32,7 +32,7 @@ public class Part02SimpleOperators implements BaseTestFlux {
         CountDownLatch latch = new CountDownLatch(1);
 
         Flux.range(0, 5)
-                .delay(Duration.of(2, ChronoUnit.SECONDS))
+                .delayElements(Duration.of(2, ChronoUnit.SECONDS))
                 .subscribe(
                         tick -> log.info("Tick {}", tick),
                         (ex) -> log.info("Error emitted"),

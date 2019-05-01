@@ -88,7 +88,7 @@ interface BaseTestFlux {
 
         return itemsStream.concatMap(item -> Flux.just(item)
                                               .doOnNext(val -> log.info("Received {} delaying for {} ", val, val.length()))
-                                              .delay(Duration.of(item.length(), unit))
+                                              .delayElements(Duration.of(item.length(), unit))
                             );
     }
 

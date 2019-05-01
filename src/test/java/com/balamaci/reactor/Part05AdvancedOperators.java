@@ -1,9 +1,10 @@
 package com.balamaci.reactor;
 
-import javafx.util.Pair;
+import com.balamaci.reactor.util.Pair;
 import org.junit.Test;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.GroupedFlux;
+import reactor.core.publisher.Hooks;
 
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
@@ -72,11 +73,13 @@ public class Part05AdvancedOperators implements BaseTestFlux {
      */
     @Test
     public void windowLimitedByUnsubscription() {
+        Hooks.onOperatorDebug();
+
         Flux<String> colors = Flux.fromArray(new String[]{"red", "green", "blue",
                 "red", "yellow", "#", "green", "green"});
 
 
-        colors.window()
+        colors.window(Integer.MAX_VALUE)
                 .concatMap(window -> window.takeUntil(val -> val.equals("#")).buffer())
                 .subscribe(list -> {
                     String listCommaSeparated = String.join(",", list);

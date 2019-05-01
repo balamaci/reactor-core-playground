@@ -1,7 +1,7 @@
 package com.balamaci.reactor;
 
 import com.balamaci.reactor.util.Helpers;
-import javafx.util.Pair;
+import com.balamaci.reactor.util.Pair;
 import org.junit.Test;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;

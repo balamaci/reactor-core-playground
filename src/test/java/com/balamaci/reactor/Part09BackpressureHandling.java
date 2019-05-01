@@ -4,6 +4,7 @@ import com.balamaci.reactor.util.Helpers;
 import org.junit.Test;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
+import reactor.core.CoreSubscriber;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.FluxSink;
 import reactor.core.scheduler.Schedulers;
@@ -23,7 +24,8 @@ public class Part09BackpressureHandling implements BaseTestFlux {
         Flux<Integer> flux = new CustomFlux(5, 10).log();
 
         flux.subscribe(
-                val -> log.info("Subscriber received: {}", val), 3);
+                val -> log.info("Subscriber received: {}", val), logErrorConsumer(), logCompleteMethod(),
+                (subscription -> subscription.request(3)));
     }
 
 
@@ -124,7 +126,7 @@ public class Part09BackpressureHandling implements BaseTestFlux {
         }
 
         @Override
-        public void subscribe(Subscriber<? super Integer> subscriber) {
+        public void subscribe(CoreSubscriber<? super Integer> subscriber) {
             subscriber.onSubscribe(new CustomRangeSubscription(startFrom, count, subscriber));
         }
 

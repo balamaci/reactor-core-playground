@@ -11,9 +11,8 @@
     <description>Reactor-Core Playground - Test scenarios describing Reactor-Core functionality</description>
 
     <properties>
-        <rxjava.version>1.2.0</rxjava.version>
-        <reactor.core>3.0.3.RELEASE</reactor.core>
-        <slf4j.version>1.7.21</slf4j.version>
+        <reactor.core>3.2.8.RELEASE</reactor.core>
+        <slf4j.version>1.7.26</slf4j.version>
     </properties>
 
     <dependencies>
@@ -22,12 +21,6 @@
             <groupId>io.projectreactor</groupId>
             <artifactId>reactor-core</artifactId>
             <version>${reactor.core}</version>
-        </dependency>
-
-        <dependency>
-            <groupId>io.javaslang</groupId>
-            <artifactId>javaslang</artifactId>
-            <version>2.0.2</version>
         </dependency>
 
         <!-- Logging -->

@@ -99,7 +99,7 @@ public class Part08ErrorHandling implements BaseTestFlux {
     public void onErrorResumeWith() {
         Flux<String> colors = Flux.just("green", "blue", "red", "white", "blue")
                 .flatMap(color -> simulateRemoteOperation(color)
-                        .onErrorResumeWith(th -> {
+                        .onErrorResume(th -> {
                             if (th instanceof IllegalArgumentException) {
                                 return Flux.error(new RuntimeException("Fatal, wrong arguments"));
                             }
@@ -132,7 +132,7 @@ public class Part08ErrorHandling implements BaseTestFlux {
                 .concatMap(color ->  delayedByLengthEmitter(ChronoUnit.SECONDS, color)
                                         .timeout(Duration.of(6, ChronoUnit.SECONDS))
                                         .retry(2)
-                                        .onErrorResumeWith(exception -> Flux.just("blank"))
+                                        .onErrorResume(exception -> Flux.just("blank"))
                 );
 
         subscribeWithLogWaiting(colors);
@@ -200,7 +200,7 @@ public class Part08ErrorHandling implements BaseTestFlux {
                                                 })
                                                 .flatMap(val -> val)
                                     )
-                                  .onErrorResumeWith((th) -> Flux.just("generic color")
+                                  .onErrorResume((th) -> Flux.just("generic color")
                         )
         );
 

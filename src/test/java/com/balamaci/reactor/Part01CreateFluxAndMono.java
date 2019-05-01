@@ -1,12 +1,12 @@
 package com.balamaci.reactor;
 
 import com.balamaci.reactor.util.Helpers;
-import javaslang.collection.List;
 import org.junit.Test;
-import reactor.core.Cancellation;
+import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.util.Arrays;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Stream;
 
@@ -29,7 +29,7 @@ public class Part01CreateFluxAndMono implements BaseTestFlux {
     public void range() {
         Flux<Integer> flux = Flux.range(1, 10);
         flux.subscribe(
-                val -> log.info("Subscriber received: {}", val), 5);
+                val -> log.info("Subscriber received: {}", val));
     }
 
     @Test
@@ -42,7 +42,7 @@ public class Part01CreateFluxAndMono implements BaseTestFlux {
 
     @Test
     public void fromIterable() {
-        Flux<String> flux = Flux.fromIterable(List.of("red", "green", "blue"));
+        Flux<String> flux = Flux.fromIterable(Arrays.asList("red", "green", "blue"));
 
         flux.subscribe(
                 val -> log.info("Subscriber received: {}"));
@@ -97,7 +97,7 @@ public class Part01CreateFluxAndMono implements BaseTestFlux {
         });
 
         log.info("Subscribing");
-        Cancellation cancellation = flux.subscribe(
+        Disposable disposable = flux.subscribe(
                 val -> log.info("Subscriber received: {}", val),
                 err -> log.error("Subscriber received error", err),
                 () -> log.info("Subscriber got Completed event"));
@@ -122,7 +122,7 @@ public class Part01CreateFluxAndMono implements BaseTestFlux {
             subscriber.next(2);
         });
 
-        Cancellation cancellation = flux.subscribe(
+        Disposable disposable = flux.subscribe(
                 val -> log.info("Subscriber received: {}", val),
                 err -> log.error("Subscriber received error", err),
                 () -> log.info("Subscriber got Completed event")
