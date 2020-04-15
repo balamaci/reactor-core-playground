@@ -10,11 +10,6 @@ import java.util.Arrays;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Stream;
 
-/**
- * Both Flux and Mono are extensions of Publisher
- *
- * @author sbalamaci
- */
 public class Part01CreateFluxAndMono implements BaseTestFlux {
 
     @Test
@@ -28,16 +23,15 @@ public class Part01CreateFluxAndMono implements BaseTestFlux {
     @Test
     public void range() {
         Flux<Integer> flux = Flux.range(1, 10);
-        flux.subscribe(
-                val -> log.info("Subscriber received: {}", val));
+
+        flux.subscribe(val -> log.info("Subscriber received: {}", val));
     }
 
     @Test
     public void fromArray() {
         Flux<String> flux = Flux.fromArray(new String[]{"red", "green", "blue", "black"});
 
-        flux.subscribe(
-                val -> log.info("Subscriber received: {}"));
+        flux.subscribe(val -> log.info("Subscriber received: {}", val));
     }
 
     @Test
@@ -54,7 +48,7 @@ public class Part01CreateFluxAndMono implements BaseTestFlux {
         Flux<String> flux = Flux.fromStream(stream);
 
         flux.subscribe(
-                val -> log.info("Subscriber received: {}"));
+                val -> log.info("Subscriber received: {}", val));
     }
 
     /**
@@ -66,12 +60,19 @@ public class Part01CreateFluxAndMono implements BaseTestFlux {
     public void fromFuture() {
         CompletableFuture<String> completableFuture = CompletableFuture.
                 supplyAsync(() -> { //starts a background thread the ForkJoin common pool
-                      Helpers.sleepMillis(100);
-                      return "red";
+                    log.info("About to sleep and return a value");
+                    Helpers.sleepMillis(500);
+                    return "red";
                 });
 
         Mono<String> mono = Mono.fromFuture(completableFuture);
-        mono.subscribe(val -> log.info("Subscriber received: {}", val));
+        mono
+                .log()
+//                .map(String::toUpperCase)
+//                .log()
+                .subscribe(val -> log.info("Subscriber received: {}", val));
+
+        Helpers.sleepMillis(1000);
     }
 
     /**
@@ -96,11 +97,15 @@ public class Part01CreateFluxAndMono implements BaseTestFlux {
             subscriber.complete();
         });
 
-        log.info("Subscribing");
-        Disposable disposable = flux.subscribe(
-                val -> log.info("Subscriber received: {}", val),
-                err -> log.error("Subscriber received error", err),
-                () -> log.info("Subscriber got Completed event"));
+
+        Disposable disposable =
+                flux
+                        .log()
+                        .subscribe(
+                                val -> log.info("Subscriber received: {}", val),
+                                err -> log.error("Subscriber received error", err),
+                                () -> log.info("Subscriber got Completed event")
+                        );
     }
 
 
@@ -125,8 +130,11 @@ public class Part01CreateFluxAndMono implements BaseTestFlux {
         Disposable disposable = flux.subscribe(
                 val -> log.info("Subscriber received: {}", val),
                 err -> log.error("Subscriber received error", err),
-                () -> log.info("Subscriber got Completed event")
+                () -> log.info("Subscriber got Completed event"),
+                sub -> sub.request(1)
         );
+
+        Helpers.sleepMillis(500);
     }
 
     /**
@@ -184,8 +192,8 @@ public class Part01CreateFluxAndMono implements BaseTestFlux {
         Flux<Integer> observable = Flux.create(subscriber -> {
 
             int i = 1;
-            while(true) {
-                if(subscriber.isCancelled()) {
+            while (true) {
+                if (subscriber.isCancelled()) {
                     break;
                 }
 
@@ -200,7 +208,7 @@ public class Part01CreateFluxAndMono implements BaseTestFlux {
                         val -> log.info("Subscriber received: {}", val),
                         err -> log.error("Subscriber received error", err),
                         () -> log.info("Subscriber got Completed event") //The Complete event is triggered by 'take()' operator
-        );
+                );
     }
 
 }

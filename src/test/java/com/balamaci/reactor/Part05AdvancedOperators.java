@@ -15,6 +15,8 @@ import java.util.List;
  */
 public class Part05AdvancedOperators implements BaseTestFlux {
 
+    //talk about thenMany
+
     @Test
     public void buffer() {
         Flux<Long> numbers = Flux.interval(Duration.of(1, ChronoUnit.SECONDS));
@@ -122,7 +124,5 @@ public class Part05AdvancedOperators implements BaseTestFlux {
 
         subscribeWithLogWaiting(colorCountStream);
     }
-
-
 
 }

@@ -11,8 +11,7 @@
    - [Backpressure](#backpressure)
 
 ## Reactive Streams
-Reactive Streams is a programming concept for handling asynchronous 
-data streams in a non-blocking manner while providing backpressure to stream publishers.
+Reactive Streams is a programming concept for handling asynchronous data streams in a non-blocking manner while providing backpressure to stream publishers.
 It has evolved into a [specification](https://github.com/reactive-streams/reactive-streams-jvm) that is based on the concept of **Publisher**&lt;T&gt;** and **Subscriber<T>**.
 A **Publisher** is the source of events **T** in the stream, and a **Subscriber** is the consumer for those events.
 A **Subscriber** subscribes to a **Publisher** by invoking a "factory method" :
@@ -21,15 +20,18 @@ public interface Publisher<T> {
     public void subscribe(Subscriber<? super T> s);
 }
 ```
-in the Publisher that will push the stream items **&lt;T&gt;** starting a new **Subscription**.  
+
+When the Subscriber is ready to start handling events, it signals this via a request to the Publisher through **Subscription** 
 ```
 public interface Subscription {
     public void request(long n); //request n items
     public void cancel();
 }
 ```
+This is an important thing to be aware of, that the **Subscriber** is signalling demand to the **Publisher** that is ready to receive X items from upstream.
+After it finishes processing them, it might ask for another set or even more. 
+Now, some subscribers begin by requesting an infinite amount(you'd see this a request(unbounded)) of items from the Publisher and this why it.
 
-When the Subscriber is ready to start handling events, it signals this via a request to that **Subscription** 
 Upon receiving this signal, the Publisher begins to invoke **Subscriber::onNext(T)** for each event **T**. 
 This continues until either completion of the stream (**Subscriber::onComplete()**) 
 or an error occurs during processing (**Subscriber::onError(Throwable)**).
@@ -43,12 +45,22 @@ public interface Subscriber<T> {
     public void onComplete();
 }
 ```
+Between the **Subscriber** and **Publisher** there normally are the **Operators** chains (**.map()**, **.filter()**). 
+Each **Operator** acts as a **Subscriber** to the previous **Operator** in the chain so forth until it reaches the actual **Publisher**. 
+The subscription and demand signals travels upstream back through each Operator in the chain to the original **Publisher**. 
+
+There are mechanisms of 
+Any difference between 
+
+This is nicely explained by the "Movers" analogy that I 
+![](images/movers.gif?raw=true)
 
 ## Flux and Mono
 Reactor provides two main types of publishers: 
    - **Flux** publisher that emits 0..N elements, and then completes (successfully or with an error)
    - **Mono** a specialized publisher that can contain only 0 or 1 events and then completes (successfully or with an error)
-    
+    Can be useful to express in an API that a single/no value(just completion notification) value is expected.
+
 ### Simple operators to create Flux
 
 ```
@@ -75,31 +87,6 @@ Flux.error(new IllegalStateException()); / Mono.error(new IllegalStateException(
 
 Code is available at [Part01CreateFluxAndMono.java](https://github.com/balamaci/reactor-core-playground/blob/master/src/test/java/com/balamaci/reactor/Part01CreateFluxAndMono.java)
 
-### Mono from Future
-We can also create a stream from Future, making easier to switch from legacy code to reactive
-Since **CompletableFuture**/**Future** can only return a single result, **Mono** is the returned type when converting
-from a Future
-
-**Mono** is a Flux that emits a single event and completes, or emits no events(just completes). 
-Can be useful to express in an API that a single/no value(just completion notification) value is expected.
-
-```
-public Mono<Long> getId() {..} // -> better express of the fact we expect a single value
-
-public Flux<Long> getId() {..} // -> not clear that we'd expect a single value 
-```
-
-```
-CompletableFuture<String> completableFuture = CompletableFuture
-            .supplyAsync(() -> { // -> starts a background thread the ForkJoin common pool
-                    log.info("CompletableFuture work starts");  
-                    Helpers.sleepMillis(100);
-                    return "red";
-            });
-
-Mono<String> response = Mono.fromFuture(completableFuture);
-```
-
 ### Creating your own Flux
 
 Using **Flux.create** to handle the actual emissions of events with the events like **onNext**, **onCompleted**, **onError**
@@ -124,8 +111,60 @@ Cancellation cancellation = flux.subscribe(
 );
 ```
 
-When subscribing to the Flux with flux.subscribe(...) the lambda code inside create() gets executed.
+When subscribing to the Flux with flux.subscribe(...) the lambda code inside **create()** gets executed.
 Flux.subscribe(...) can take 3 handlers for each type of event - **onNext, onError** and **onComplete**.
+
+We can get a more clear picture of what is happening by calling the **log()** operator: 
+
+Now we're also seeing the subscribe request being done and the request upstream signaling demand for an unlimited number of items to be published.
+the **request(unbounded)** message.
+
+```
+17:54:53:755 [main] INFO 1 - onSubscribe(FluxCreate.BufferAsyncSink)
+17:54:53:757 [main] INFO 1 - request(unbounded)
+17:54:53:759 [main] INFO BaseTestFlux - Started emitting
+17:54:53:759 [main] INFO BaseTestFlux - Emitting 1st
+17:54:53:760 [main] INFO 1 - onNext(1)
+17:54:53:760 [main] INFO BaseTestFlux - Subscriber received: 1
+17:54:53:760 [main] INFO BaseTestFlux - Emitting 2nd
+17:54:53:761 [main] INFO 1 - onNext(2)
+17:54:53:761 [main] INFO BaseTestFlux - Subscriber received: 2
+17:54:53:762 [main] INFO 1 - onComplete()
+17:54:53:762 [main] INFO BaseTestFlux - Subscriber got Completed event
+```
+
+
+### First look at backpressure
+It is not obvious above, but we've not been fair in our **Publisher**, we didn't care what the subscriber demand was, we just pushed on subscribing 2 items downstream.
+If we look in our 
+
+
+## Working with Legacy code - Mono from Future
+Lets imagine we want to incrementally make our legacy code more reactive. 
+We can create a stream from Future, making easier to switch from legacy code to reactive so that's it right? 
+Since **CompletableFuture** can only return a single result, **Mono** is the returned type when converting
+from a Future.
+
+
+```java
+    @Test
+    public void fromFuture() {
+        CompletableFuture<String> completableFuture = CompletableFuture.
+                supplyAsync(() -> { //starts a background thread the ForkJoin common pool
+                    log.info("About to sleep and return a value");
+                    Helpers.sleepMillis(100);
+                    return "red";
+                });
+
+        Mono<String> mono = Mono.fromFuture(completableFuture);
+        mono
+                .subscribe(val -> log.info("Subscriber received: {}", val));
+    }
+```
+
+There are some things unexpected with this simple example.
+
+
 
 ### Flux and Mono are lazy 
 Flux and Mono are lazy, meaning that the code inside create() doesn't get executed without subscribing to the Flux.
@@ -147,7 +186,7 @@ public void fluxIsLazy() {
 When subscribing to a Flux, the *create()* method gets executed for each subscription. This means that the events 
 inside create are re-emitted to each subscriber. 
 
-So every subscriber will get the same events and will not lose any events - this behavior is named **'cold observable'**
+So every subscriber will get the same events and will not lose any events - this is named a **Cold Publisher'**
 
 ```
 Flux<Integer> flux = Flux.create(subscriber -> {

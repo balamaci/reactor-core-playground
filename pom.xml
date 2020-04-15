@@ -11,8 +11,9 @@
     <description>Reactor-Core Playground - Test scenarios describing Reactor-Core functionality</description>
 
     <properties>
-        <reactor.core>3.2.8.RELEASE</reactor.core>
-        <slf4j.version>1.7.26</slf4j.version>
+        <reactor.core>3.3.4.RELEASE</reactor.core>
+        <slf4j.version>1.7.30</slf4j.version>
+        <junit.version>4.12</junit.version>
     </properties>
 
     <dependencies>
@@ -39,7 +40,7 @@
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
-            <version>4.12</version>
+            <version>${junit.version}</version>
             <scope>test</scope>
         </dependency>
 

@@ -119,7 +119,7 @@ public class Part02SimpleOperators implements BaseTestFlux {
      */
     @Test
     public void repeat() {
-        Flux random = Flux.defer(() -> {
+        Flux<Integer> random = Flux.defer(() -> {
                                     Random rand = new Random();
                                     return Mono.just(rand.nextInt(20));
                                 })
