@@ -52,7 +52,7 @@ The subscription and demand signals travels upstream back through each Operator 
 There are mechanisms of 
 Any difference between 
 
-This is nicely explained by the "Movers" analogy that I 
+This is nicely explained by the "Movers" analogy that I read [here](https://tomstechnicalblog.blogspot.ro/2015_10_01_archive.html) 
 ![](images/movers.gif?raw=true)
 
 ## Flux and Mono
@@ -92,32 +92,33 @@ Code is available at [Part01CreateFluxAndMono.java](https://github.com/balamaci/
 Using **Flux.create** to handle the actual emissions of events with the events like **onNext**, **onCompleted**, **onError**
 
 ``` 
-Flux<Integer> flux = Flux.create(subscriber -> {
-    log.info("Started emitting");
+        Flux<Integer> flux = Flux.create(subscriber -> {
+            log.info("Started emitting");
 
-    log.info("Emitting 1st");
-    subscriber.next(1);
+            log.info("Emitting 1st");
+            subscriber.next(1);
 
-    log.info("Emitting 2nd");
-    subscriber.next(2);
+            log.info("Emitting 2nd");
+            subscriber.next(2);
 
-    subscriber.onCompleted();
-});
+            subscriber.complete();
+        });
 
-Cancellation cancellation = flux.subscribe(
-        val -> log.info("Subscriber received: {}", val),    //--> onNext
-        err -> log.error("Subscriber received error", err), //--> onError
-        () -> log.info("Subscriber got Completed event")    //--> onComplete
-);
+
+        Disposable cancelable =
+                flux
+                        .log()
+                        .subscribe(
+                                val -> log.info("Subscriber received: {}", val),   //--> onNext
+                                err -> log.error("Subscriber received error", err),//--> onError
+                                () -> log.info("Subscriber got Completed event")   //--> onComplete
+                        );
 ```
 
 When subscribing to the Flux with flux.subscribe(...) the lambda code inside **create()** gets executed.
 Flux.subscribe(...) can take 3 handlers for each type of event - **onNext, onError** and **onComplete**.
 
 We can get a more clear picture of what is happening by calling the **log()** operator: 
-
-Now we're also seeing the subscribe request being done and the request upstream signaling demand for an unlimited number of items to be published.
-the **request(unbounded)** message.
 
 ```
 17:54:53:755 [main] INFO 1 - onSubscribe(FluxCreate.BufferAsyncSink)
@@ -132,6 +133,9 @@ the **request(unbounded)** message.
 17:54:53:762 [main] INFO 1 - onComplete()
 17:54:53:762 [main] INFO BaseTestFlux - Subscriber got Completed event
 ```
+Now we're also seeing the subscribe request being made and the request upstream signaling demand for an unlimited number of items to be published.
+the **request(unbounded)** message.
+
 
 
 ### First look at backpressure
@@ -142,7 +146,7 @@ If we look in our
 ## Working with Legacy code - Mono from Future
 Lets imagine we want to incrementally make our legacy code more reactive. 
 We can create a stream from Future, making easier to switch from legacy code to reactive so that's it right? 
-Since **CompletableFuture** can only return a single result, **Mono** is the returned type when converting
+Since **CompletableFuture** can only return a single result(**future.get()**), **Mono** is the returned type when converting
 from a Future.
 
 
@@ -158,12 +162,54 @@ from a Future.
 
         Mono<String> mono = Mono.fromFuture(completableFuture);
         mono
+                .log()
                 .subscribe(val -> log.info("Subscriber received: {}", val));
     }
 ```
+The **Mono.fromFuture** does a **subcriber.onNext(futureVal)** followed by **subscriber.onComplete()** registered with **completableFuture.whenComplete()**
+However if we ran this, we'd not see anything being printed. 
 
-There are some things unexpected with this simple example.
+```
+21:45:35:321 [ForkJoinPool.commonPool-worker-1] INFO BaseTestFlux - About to sleep and return a value
+21:45:35:481 [main] INFO 1 - | onSubscribe([Fuseable] Operators.MonoSubscriber)
+21:45:35:488 [main] INFO 1 - | request(unbounded)
+21:45:35:824 [ForkJoinPool.commonPool-worker-1] INFO 1 - | onNext(red)
+21:45:35:825 [ForkJoinPool.commonPool-worker-1] INFO BaseTestFlux - Subscriber received: red
+21:45:35:826 [ForkJoinPool.commonPool-worker-1] INFO 1 - | onComplete()
+```
+because when we invoked **CompletableFuture.supplyAsync** our work is started in a thread of 
+the Java's ForkJoin pool and so will be the call to **subscriber.onNext** and **onComplete()**. 
 
+Our **Mono.subscribe()** call is invoked on the main thread however and there is nothing preventing it from finishing before the one which generates the event.
+We could, wait for the value to arrive onSubscribe using a CountdownLatch:
+```
+        CountDownLatch latch = new CountDownLatch(1);
+        Mono<String> mono = Mono.fromFuture(completableFuture);
+        mono
+                .log()
+                .subscribe(val -> {
+                    log.info("Subscriber received: {}", val);
+                    latch.countDown();
+                });
+
+        latch.await();
+```
+
+However, reactor provides for us some helper methods already: **mono.block()** which blocks the current 
+```java
+        Mono<String> mono = Mono.fromFuture(completableFuture);
+        mono
+                .log()
+                .subscribe(val -> log.info("Subscriber received: {}", val));
+
+        String val = mono.block(); //--block indefinitely until a onNext signal is received
+```
+and **flux.blockFirst()** or **flux.blockLast()** if Flux instead of Mono.
+
+Another thing to notice is the use of **Thread.sleep()** means that the async thread is blocked for some time. The point of using Reactor is that, 
+we aim for using non-blocking code as much as possible, because it means a low number of threads and context switches which translates in optimal usage of resources.
+We should confine blocking parts to special thread pools that don't starve the one used by non blocking code. However, for the sake of simplicity we'll see some examples using Thread.sleep(),
+You might even want to know there is a tool specially created to root out blocking code like []. 
 
 
 ### Flux and Mono are lazy 
@@ -232,7 +278,7 @@ will output
 Inside the create() method, we can check is there are still active subscribers to our Flux.
 It's a way to prevent to do extra work(like for ex. querying a datasource for entries) if no one is listening
 In the following example we'd expect to have an infinite stream, but because we stop if there are no active subscribers we stop producing events.
-The **take()** operator for ex. just unsubscribes from the Flux after it's received the specified amount of events.
+The **take()** operator for ex. just unsubscribes(cancels subscription) from the Flux after it has received the specified amount of events.
 
 ```
 Flux<Integer> flux = Flux.create(subscriber -> {
@@ -258,9 +304,46 @@ flux
 ```
 
 ## Simple Operators
+Between the source Flux Publisher and the Subscriber, there can be a wide range of operators and **reactor** provides 
+lots of operators to chose from. Probably you are already familiar with functional operations like **filter** and **map**. 
+so let's use them as example:
+
+```java
+Flux<Integer> stream = Flux.create(subscriber -> {
+        subscriber.onNext(1);
+        subscriber.onNext(2);
+        ....
+        subscriber.onComplete();
+    });
+    .map(val -> val * 10)
+    .filter(val -> val < 10)
+    .subscribe(val -> log.info("Received: {}", val));
+```
+
+When we call _Flux.create()_ you might think that we're calling **onNext(..)**, onComplete**(..)** on the Subscriber at the end of the chain, 
+not the operators between them.
+
+This is not true because **the operators themselves are decorators for their source** wrapping it with the operator behavior 
+like an onion's layers. 
+Above **Flux.map()** returns a new Flux instances that wraps the **Flux.create** one and so on.  
+
+When we call **.subscribe()** at the end of the chain, **Subscription propagates through the layers back to the source,
+each operator subscribing itself to it's wrapped source Flux and so on till the original source, 
+triggering it to start producing/emitting items**.
+
+**Flux.create** calls **---&gt; mapOperator.onNext(val)** does val = val * 10 **---&gt; filterOperator.onNext(val)** which if val &lt; 10 calls **---&gt; subscriber.onNext(val)**. 
+
+Said above that I found helpful, a nice analogy with a team of house movers, with every mover doing his thing(like boxing) before passing it to the next in line
+until it reaches the final subscriber.
+![](images/movers.gif?raw=true)
+
+### doOnNext, doOnSubscribe, doOnError, doOnCancel
+React provides this which are great for debugging
+
+
 
 ### delay
-Delay operator - the Thread.sleep of the reactive world, it's pausing for a particular increment of time
+Delay operator - the Thread.sleep() equivalent in the reactive world, it's pausing for a particular increment of time
 before emitting the events which are thus shifted by the specified time amount.
 
 ![delay](https://raw.githubusercontent.com/reactor/projectreactor.io/master/src/main/static/assets/img/marble/delayonnext.png)
@@ -375,7 +458,7 @@ Mono<List<Integer>> numbers = Flux.just(3, 5, -2, 9)
 because the usecase to store to a List container is so common, there is a **.toList()** operator that is just a collector adding to a List. 
 
 
-## Merging Streams
+## Merging Streams and flow controll
 Operators for working with multiple streams
 
 ### zip
@@ -480,14 +563,14 @@ and the seconds stream is subscribed.
 
 
 ### Schedulers
-RxJava provides some high level concepts for concurrent execution, like ExecutorService we're not dealing
-with the low level constructs like creating the Threads ourselves. Instead we're using a **Scheduler** which create
+Reactor provides some high level concepts for concurrent execution, like ExecutorService we're not dealing
+with the low level constructs like creating the Threads ourselves. Instead, we're using a **Scheduler** which create
 Workers who are responsible for scheduling and running code. By default RxJava will not introduce concurrency 
 and will run the operations on the subscription thread.
 
 There are two methods through which we can introduce Schedulers into our chain of operations:
 
-   - **subscribeOn** allows to specify which Scheduler invokes the code contained in the lambda code for Observable.create()
+   - **subscribeOn** allows specifying which Scheduler invokes the code contained in the lambda code for Observable.create()
    - **observeOn** allows control to which Scheduler executes the code in the downstream operators
 
 RxJava provides some general use Schedulers:

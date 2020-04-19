@@ -17,6 +17,29 @@ import java.util.concurrent.CountDownLatch;
  */
 public class Part02SimpleOperators implements BaseTestFlux {
 
+    @Test
+    public void debugOperators() {
+        Flux<Integer> flux = Flux.create(subscriber -> {
+            log.info("Started emitting");
+
+            log.info("Emitting 1st");
+            subscriber.next(1);
+
+            log.info("Emitting 2nd");
+            subscriber.next(2);
+
+            subscriber.complete();
+        });
+
+        flux
+                .map(val -> val * 10)
+                .doOnRequest(reqVal -> log.info("OnRequest {}", reqVal))
+                .filter(val -> val > 10)
+                .doOnNext(val -> log.info("After Filter {}", val))
+                .subscribe(val -> log.info("Subscriber received: {}", val));
+
+    }
+
     /**
      * Delay operator - the Thread.sleep of the reactive world, it's pausing for a particular increment of time
      * before emitting the events which are thus shifted by the specified time amount.
@@ -128,5 +151,8 @@ public class Part02SimpleOperators implements BaseTestFlux {
         subscribeWithLogWaiting(random);
     }
 
+    /**
+     * generate
+     */
 
 }

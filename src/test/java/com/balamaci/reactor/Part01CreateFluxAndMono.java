@@ -16,8 +16,7 @@ public class Part01CreateFluxAndMono implements BaseTestFlux {
     public void just() {
         Flux<Integer> flux = Flux.just(1, 5, 10);
 
-        flux.subscribe(
-                val -> log.info("Subscriber received: {}", val));
+        flux.subscribe(val -> log.info("Subscriber received: {}", val));
     }
 
     @Test
@@ -38,8 +37,7 @@ public class Part01CreateFluxAndMono implements BaseTestFlux {
     public void fromIterable() {
         Flux<String> flux = Flux.fromIterable(Arrays.asList("red", "green", "blue"));
 
-        flux.subscribe(
-                val -> log.info("Subscriber received: {}"));
+        flux.subscribe(val -> log.info("Subscriber received: {}", val));
     }
 
     @Test
@@ -47,8 +45,7 @@ public class Part01CreateFluxAndMono implements BaseTestFlux {
         Stream<String> stream = Stream.of("red", "green");
         Flux<String> flux = Flux.fromStream(stream);
 
-        flux.subscribe(
-                val -> log.info("Subscriber received: {}", val));
+        flux.subscribe(val -> log.info("Subscriber received: {}", val));
     }
 
     /**
@@ -57,7 +54,7 @@ public class Part01CreateFluxAndMono implements BaseTestFlux {
      * from a Future
      */
     @Test
-    public void fromFuture() {
+    public void fromFuture() throws InterruptedException {
         CompletableFuture<String> completableFuture = CompletableFuture.
                 supplyAsync(() -> { //starts a background thread the ForkJoin common pool
                     log.info("About to sleep and return a value");
@@ -68,11 +65,9 @@ public class Part01CreateFluxAndMono implements BaseTestFlux {
         Mono<String> mono = Mono.fromFuture(completableFuture);
         mono
                 .log()
-//                .map(String::toUpperCase)
-//                .log()
                 .subscribe(val -> log.info("Subscriber received: {}", val));
 
-        Helpers.sleepMillis(1000);
+        mono.block();
     }
 
     /**
@@ -98,13 +93,13 @@ public class Part01CreateFluxAndMono implements BaseTestFlux {
         });
 
 
-        Disposable disposable =
+        Disposable cancelable =
                 flux
                         .log()
                         .subscribe(
-                                val -> log.info("Subscriber received: {}", val),
-                                err -> log.error("Subscriber received error", err),
-                                () -> log.info("Subscriber got Completed event")
+                                val -> log.info("Subscriber received: {}", val),   //--> onNext
+                                err -> log.error("Subscriber received error", err),//--> onError
+                                () -> log.info("Subscriber got Completed event")   //--> onComplete
                         );
     }
 
@@ -130,11 +125,7 @@ public class Part01CreateFluxAndMono implements BaseTestFlux {
         Disposable disposable = flux.subscribe(
                 val -> log.info("Subscriber received: {}", val),
                 err -> log.error("Subscriber received error", err),
-                () -> log.info("Subscriber got Completed event"),
-                sub -> sub.request(1)
-        );
-
-        Helpers.sleepMillis(500);
+                () -> log.info("Subscriber got Completed event"));
     }
 
     /**
