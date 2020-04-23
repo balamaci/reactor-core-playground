@@ -47,13 +47,19 @@ public interface Subscriber<T> {
 ```
 Between the **Subscriber** and **Publisher** there normally are the **Operators** chains (**.map()**, **.filter()**). 
 Each **Operator** acts as a **Subscriber** to the previous **Operator** in the chain so forth until it reaches the actual **Publisher**. 
-The subscription and demand signals travels upstream back through each Operator in the chain to the original **Publisher**. 
+The **subscription** and **demand** signals travels upstream back through each Operator in the chain to the original **Publisher**. 
+Each operator actually can change the amount requested from upstream according to his own logic - for ex. a default subscriber usually requests an unlimited
+number of items, but as the request signal bubbles upstream to the Publisher each operator. 
 
-There are mechanisms of 
-Any difference between 
-
-This is nicely explained by the "Movers" analogy that I read [here](https://tomstechnicalblog.blogspot.ro/2015_10_01_archive.html) 
+This is nicely explained by the "Movers" analogy that I found [here](https://tomstechnicalblog.blogspot.ro/2015_10_01_archive.html) 
 ![](images/movers.gif?raw=true)
+This image is missing the request to send more items from the last mover after it receives items - lets assume that it initially, the last mover 
+requested for an unlimited number of items which travelled to the next guy till the one in the house and then the objects started flowing-
+
+The real world is not ideal and something the Publisher might not always conform to demand from downstream 
+- events might get produced even if your subscriber whose role might be storing the events in a database is not able to keep up.-
+The mechanisms of controlling this possible mismatch of demand and this is the subject of **Backpressure** and is it based on either dropping or buffering the events.
+
 
 ## Flux and Mono
 Reactor provides two main types of publishers: 
@@ -320,7 +326,7 @@ Flux<Integer> stream = Flux.create(subscriber -> {
     .subscribe(val -> log.info("Received: {}", val));
 ```
 
-When we call _Flux.create()_ you might think that we're calling **onNext(..)**, onComplete**(..)** on the Subscriber at the end of the chain, 
+When we call _Flux.create()_ you might think that we're calling **onNext(..)**, **onComplete(..)** on the Subscriber at the end of the chain, 
 not the operators between them.
 
 This is not true because **the operators themselves are decorators for their source** wrapping it with the operator behavior 
@@ -333,13 +339,19 @@ triggering it to start producing/emitting items**.
 
 **Flux.create** calls **---&gt; mapOperator.onNext(val)** does val = val * 10 **---&gt; filterOperator.onNext(val)** which if val &lt; 10 calls **---&gt; subscriber.onNext(val)**. 
 
-Said above that I found helpful, a nice analogy with a team of house movers, with every mover doing his thing(like boxing) before passing it to the next in line
-until it reaches the final subscriber.
+Said above that I found helpful, a nice analogy with a team of house movers, with every mover doing his thing(like boxing) before passing objects to the next in line
+until it reaches the final subscriber(the truck, which **onComplete** drives off).
 ![](images/movers.gif?raw=true)
 
 ### doOnNext, doOnSubscribe, doOnError, doOnCancel
-React provides this which are great for debugging
-
+Reactor provides these operators which are great for debugging
+ - doOnNext
+ - doOnSubscribe
+ - doOnError
+ - doOnComplete
+ - doOnEach
+ - doOnEach
+ 
 
 
 ### delay
