@@ -18,7 +18,7 @@ import java.util.concurrent.CountDownLatch;
 public class Part02SimpleOperators implements BaseTestFlux {
 
     @Test
-    public void debugOperators() {
+    public void doOnXXXOperators() {
         Flux<Integer> flux = Flux.create(subscriber -> {
             log.info("Started emitting");
 
@@ -32,10 +32,12 @@ public class Part02SimpleOperators implements BaseTestFlux {
         });
 
         flux
+                .log()
+                .next()
                 .map(val -> val * 10)
-                .doOnRequest(reqVal -> log.info("OnRequest {}", reqVal))
+//                .log(reqVal -> log.info("OnRequest {}", reqVal))
                 .filter(val -> val > 10)
-                .doOnNext(val -> log.info("After Filter {}", val))
+//                .doOnNext(val -> log.info("After Filter {}", val))
                 .subscribe(val -> log.info("Subscriber received: {}", val));
 
     }

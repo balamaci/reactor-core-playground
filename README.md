@@ -212,10 +212,10 @@ However, reactor provides for us some helper methods already: **mono.block()** w
 ```
 and **flux.blockFirst()** or **flux.blockLast()** if Flux instead of Mono.
 
-Another thing to notice is the use of **Thread.sleep()** means that the async thread is blocked for some time. The point of using Reactor is that, 
+Another thing to notice is the use of **Thread.sleep()** means that the async thread is blocked for some time. The point of using Reactor is that 
 we aim for using non-blocking code as much as possible, because it means a low number of threads and context switches which translates in optimal usage of resources.
 We should confine blocking parts to special thread pools that don't starve the one used by non blocking code. However, for the sake of simplicity we'll see some examples using Thread.sleep(),
-You might even want to know there is a tool specially created to root out blocking code like []. 
+You might even want to know there is a tool specially created to root out blocking code like [Blockhound](https://github.com/reactor/BlockHound). 
 
 
 ### Flux and Mono are lazy 
@@ -310,6 +310,7 @@ flux
 ```
 
 ## Simple Operators
+### Deeper look at the workings of operators
 Between the source Flux Publisher and the Subscriber, there can be a wide range of operators and **reactor** provides 
 lots of operators to chose from. Probably you are already familiar with functional operations like **filter** and **map**. 
 so let's use them as example:
@@ -321,9 +322,23 @@ Flux<Integer> stream = Flux.create(subscriber -> {
         ....
         subscriber.onComplete();
     });
+    .log()
     .map(val -> val * 10)
-    .filter(val -> val < 10)
+    .filter(val -> val > 10)
     .subscribe(val -> log.info("Received: {}", val));
+```
+outputs
+```
+16:00:32:530 [main] INFO 1 - onSubscribe(FluxCreate.BufferAsyncSink)
+16:00:32:532 [main] INFO 1 - request(unbounded)
+16:00:32:534 [main] INFO BaseTestFlux - Started emitting
+16:00:32:535 [main] INFO BaseTestFlux - Emitting 1st
+16:00:32:535 [main] INFO 1 - onNext(1)
+16:00:32:535 [main] INFO 1 - request(1)
+16:00:32:535 [main] INFO BaseTestFlux - Emitting 2nd
+16:00:32:535 [main] INFO 1 - onNext(2)
+16:00:32:536 [main] INFO BaseTestFlux - Subscriber received: 20
+16:00:32:537 [main] INFO 1 - onComplete()
 ```
 
 When we call _Flux.create()_ you might think that we're calling **onNext(..)**, **onComplete(..)** on the Subscriber at the end of the chain, 
@@ -337,22 +352,43 @@ When we call **.subscribe()** at the end of the chain, **Subscription propagates
 each operator subscribing itself to it's wrapped source Flux and so on till the original source, 
 triggering it to start producing/emitting items**.
 
-**Flux.create** calls **---&gt; mapOperator.onNext(val)** does val = val * 10 **---&gt; filterOperator.onNext(val)** which if val &lt; 10 calls **---&gt; subscriber.onNext(val)**. 
+**Flux.create** calls **---&gt; mapOperator.onNext(val)** does val = val * 10 **---&gt; filterOperator.onNext(val)** which if val &gt; 10 calls **---&gt; subscriber.onNext(val)**. 
 
 Said above that I found helpful, a nice analogy with a team of house movers, with every mover doing his thing(like boxing) before passing objects to the next in line
 until it reaches the final subscriber(the truck, which **onComplete** drives off).
-![](images/movers.gif?raw=true)
+
+![Movers](images/movers.gif?raw=true)
+
+- Call to .subscribe() starts the subscription, and the **subscribe** event bubbles upstream triggering _onSubscribe_ through the _log_ operator.
+The subscriber then requests an unlimited number of items, from upstream.  
+```
+16:00:32:530 [main] INFO 1 - onSubscribe(FluxCreate.BufferAsyncSink)
+16:00:32:532 [main] INFO 1 - request(unbounded)
+```
+- First element is sent downstream and passes through the *.log()* operator 
+```
+16:00:32:534 [main] INFO BaseTestFlux - Started emitting
+16:00:32:535 [main] INFO BaseTestFlux - Emitting 1st
+16:00:32:535 [main] INFO 1 - onNext(1)
+```
+- Element reaches **.filter()** and fails condition so is not sent next on to the *.map()*. However, it meant that there was demand for elements,
+and so is asking upstream to send another element instead, this is why we see _request(1)_.
+```
+16:00:32:535 [main] INFO 1 - request(1)
+```
+
+
 
 ### doOnNext, doOnSubscribe, doOnError, doOnCancel
-Reactor provides these operators which are great for debugging
+Reactor provides these operators who act on signals which are helpful for debugging or any side effects
  - doOnNext
  - doOnSubscribe
+ - doOnRequest
  - doOnError
  - doOnComplete
  - doOnEach
- - doOnEach
+ - doFinally - this is executed after the Flux terminates(completes or terminates with error).
  
-
 
 ### delay
 Delay operator - the Thread.sleep() equivalent in the reactive world, it's pausing for a particular increment of time
@@ -470,7 +506,11 @@ Mono<List<Integer>> numbers = Flux.just(3, 5, -2, 9)
 because the usecase to store to a List container is so common, there is a **.toList()** operator that is just a collector adding to a List. 
 
 
-## Merging Streams and flow controll
+## Extra debugging help
+
+
+
+## Merging Streams
 Operators for working with multiple streams
 
 ### zip
@@ -572,6 +612,10 @@ before we see any 'numbers'.
 This is because 'numbers' stream is actually subscribed only after the 'colors' complete.
 Should the second stream be a 'hot' emitter, its events would be lost until the first one finishes
 and the seconds stream is subscribed.
+
+
+### then, thenMany
+
 
 
 ### Schedulers
