@@ -1,6 +1,5 @@
 package com.balamaci.reactor;
 
-import com.balamaci.reactor.util.Helpers;
 import com.balamaci.reactor.util.Pair;
 import org.junit.Test;
 import reactor.core.publisher.Flux;
@@ -38,7 +37,7 @@ public class Part06FlatMapOperator implements BaseTestFlux {
     public void flatMap() {
         Flux<String> colors = Flux.just("orange", "red", "green")
                 .flatMap(colorName -> simulateRemoteOperation(colorName));
-        subscribeWithLog(colors);
+        subscribeWithLogWaiting(colors);
     }
 
     /**
@@ -173,20 +172,13 @@ public class Part06FlatMapOperator implements BaseTestFlux {
      * @return Flux
      */
     private Flux<String> simulateRemoteOperation(String color) {
-        return Flux.<String>create(subscriber -> {
-            Runnable asyncRun = () -> {
-                if("pink".equals(color)) {
-                    subscriber.error(new RuntimeException("Pink is not allowed"));
-                }
-                for (int i = 0; i < color.length(); i++) {
-                    subscriber.next(color + i);
-                    Helpers.sleepMillis(200);
-                }
+        if("black".equals(color)) {
+            return Flux.error(new RuntimeException("Black is not a color"));
+        }
 
-                subscriber.complete();
-            };
-            new Thread(asyncRun).start();
-        });
+        return Flux.range(0, color.length())
+                .map(it -> color + it)
+                .delayElements(Duration.of(200, ChronoUnit.MILLIS));
     }
 
 
