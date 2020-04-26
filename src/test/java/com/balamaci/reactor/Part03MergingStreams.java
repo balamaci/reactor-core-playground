@@ -75,7 +75,7 @@ public class Part03MergingStreams implements BaseTestFlux {
      * as soon as they are emitted
      */
     @Test
-    public void mergeOperator() {
+    public void merge() {
         log.info("Starting");
 
         Flux<String> colors = periodicEmitter("red", "green", "blue", 2, ChronoUnit.SECONDS);
@@ -107,6 +107,18 @@ public class Part03MergingStreams implements BaseTestFlux {
         subscribeWithLogWaiting(flux);
     }
 
+    @Test
+    public void thenMany() {
+        log.info("Starting");
+        Flux<String> colors = periodicEmitter("red", "green", "blue", 2, ChronoUnit.SECONDS);
+
+        Flux<Long> numbers = Flux.interval(Duration.of(1, ChronoUnit.SECONDS))
+                .take(4);
+
+        Flux flux = colors.thenMany(numbers);
+        subscribeWithLogWaiting(flux);
+    }
+
     /**
      * combineLatest pairs events from multiple streams, but instead of waiting for an event
      * from all other streams, it uses the last emitted event from that stream
@@ -120,6 +132,6 @@ public class Part03MergingStreams implements BaseTestFlux {
                                     .take(4);
 
         Flux flux = Flux.combineLatest(colors, numbers, Pair::new);
-        subscribeWithLog(flux);
+        subscribeWithLogWaiting(flux);
     }
 }

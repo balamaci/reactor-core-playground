@@ -522,13 +522,13 @@ This is an useful scenario when for example you want to make requests to remote 
 wait for both responses before continuing. It also takes a function which will produce the combined result
 of the zipped streams once each has emitted a value.
 
-![Zip](https://raw.githubusercontent.com/reactor/projectreactor.io/master/src/main/static/assets/img/marble/zip.png)
+![Zip](https://projectreactor.io/docs/core/release/api/reactor/core/publisher/doc-files/marbles/zipIterableSourcesForFlux.svg)
 
 
 Zip operator besides the streams to zip, also takes as parameter a function which will produce the 
 combined result of the zipped streams once each stream emitted it's value
 
-```
+```java
 Mono<Boolean> isUserBlockedStream = Mono.
                                      fromFuture(CompletableFuture.supplyAsync(() -> {
             Helpers.sleepMillis(200);
@@ -552,7 +552,7 @@ the 'zip' method applies the combining function(new Pair(x,y)) after it received
 to the subscriber.
 
 Another good example of 'zip' is to slow down a stream by another basically **implementing a periodic emitter of events**:
-```  
+```java
 Flux<String> colors = Flux.just("red", "green", "blue");
 Flux<Long> timer = Flux.interval(2, TimeUnit.SECONDS);
 
@@ -565,8 +565,8 @@ with zip setting the pace of emissions downstream every 2 seconds.
 
 ### merge
 Merge operator combines one or more stream and passes events downstream as soon as they appear.
-![merge](https://raw.githubusercontent.com/reactor/projectreactor.io/master/src/main/static/assets/img/marble/merge.png)
-```
+![merge](https://projectreactor.io/docs/core/release/api/reactor/core/publisher/doc-files/marbles/mergeFixedSources.svg)
+```java
 Flux<String> colors = periodicEmitter("red", "green", "blue", 2, TimeUnit.SECONDS);
 
 Flux<Long> numbers = Flux.interval(Duration.of(1, ChronoUnit.SECONDS))
@@ -586,9 +586,9 @@ Flux<Long> numbers = Flux.interval(Duration.of(1, ChronoUnit.SECONDS))
 
 ### concat
 Concat operator appends another streams at the end of another
-![concat](https://raw.githubusercontent.com/reactor/projectreactor.io/master/src/main/static/assets/img/marble/concat.png)
+![concat](https://projectreactor.io/docs/core/release/api/reactor/core/publisher/doc-files/marbles/concatVarSources.svg)
 
-```
+```java
 Flux<String> colors = periodicEmitter("red", "green", "blue", 2, TimeUnit.SECONDS);
 
 Flux<Long> numbers = Flux.interval(Duration.of(1, ChronoUnit.SECONDS))
@@ -610,12 +610,35 @@ Flux events = Flux.concat(colors, numbers);
 Even if the 'numbers' streams should start early, the 'colors' stream emits fully its events
 before we see any 'numbers'.
 This is because 'numbers' stream is actually subscribed only after the 'colors' complete.
-Should the second stream be a 'hot' emitter, its events would be lost until the first one finishes
+Should the second stream be a 'hot' emitter, its events would be lost until the first one finishes,
 and the seconds stream is subscribed.
 
 
-### then, thenMany
+### thenMany
+**thenMany** is similar to concat, with the big difference that the emissions from the first stream are ignored, they are not passed downstream, 
+and only the **complete** signal is triggering subscription of the next stream.
+![thenMany](https://projectreactor.io/docs/core/release/api/reactor/core/publisher/doc-files/marbles/thenManyForFlux.svg)
+  
+```java
+log.info("Starting");
+Flux<String> colors = periodicEmitter("red", "green", "blue", 2, ChronoUnit.SECONDS);
 
+Flux<Long> numbers = Flux.interval(Duration.of(1, ChronoUnit.SECONDS))
+                .take(4);
+
+Flux flux = colors.thenMany(numbers);
+subscribeWithLogWaiting(flux);
+```
+notice the difference in time between the _'Starting'_ message. The first stream still runs but there isn't any colors arriving at the subscription for the whole time, 
+then the stream completes, which triggers subscription on the second stream.  
+```
+08:41:18:689 [main] INFO BaseTestFlux - Starting
+08:41:25:946 [parallel-2] INFO BaseTestFlux - Subscriber received: 0
+08:41:26:943 [parallel-2] INFO BaseTestFlux - Subscriber received: 1
+08:41:27:943 [parallel-2] INFO BaseTestFlux - Subscriber received: 2
+08:41:28:943 [parallel-2] INFO BaseTestFlux - Subscriber received: 3
+08:41:28:943 [parallel-2] INFO BaseTestFlux - Subscriber got Completed event
+```
 
 
 ### Schedulers
