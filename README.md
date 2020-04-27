@@ -640,6 +640,43 @@ then the stream completes, which triggers subscription on the second stream.
 08:41:28:943 [parallel-2] INFO BaseTestFlux - Subscriber got Completed event
 ```
 
+## Hot Publishers
+We've seen that with *'cold publishers'*, whenever a subscriber subscribes, each subscriber will get
+its version of emitted values independently, the exact set of data indifferently when they subscribe.
+But cold publishers only produce data when the subscribers subscribes, however there are cases where 
+the events happen independently of the consumers, regardless if someone is 
+listening or not, and we don't have control to request more. So you could say we have 'cold publishers' for pull
+scenarios and 'hot publishers' which push.
+
+### Processors - act
+Reactive streams specifications also mention the concept of **Procesor**s which act as both Publisher and Subscriber to help.
+You can use the same operators and subscribe to them, but also implementing the 3 methods **onNext, onError, onComplete**, 
+meaning you can invoke **processor.onNext(value)** from different parts in the code,
+which means that you publish events which the Subject will pass on to their subscribers.
+
+### DirectProcessor
+A simple Processor that keeps a list of subscribers and publishes a .
+Any late subscribers miss on events. Events must be published on the same Thread.
+
+```java
+
+```
+
+### ConnectableFlux and resource sharing
+There are cases when we want to share a single subscription between subscribers, meaning while the code that executes
+on subscribing should be executed once, the events should be published to all subscribers.     
+
+For ex. when we want to share a connection between multiple Observables / Flowables. 
+Using a plain Publisher would just reexecute the code inside _.create()_ and opening / closing a new connection for each 
+new subscriber when it subscribes / cancels its subscription.
+
+**ConnectableFlux** are a special kind of **Publisher**. No matter how many Subscribers subscribe to ConnectableObservable, 
+it opens just one subscription to the Observable from which it was created.
+
+Anyone who subscribes to **ConnectableObservable** is placed in a set of Subscribers(it doesn't trigger
+the _.create()_ code a normal Observable would when .subscribe() is called). A **.connect()** method is available for ConnectableObservable.
+**As long as connect() is not called, these Subscribers are put on hold, they never directly subscribe to upstream Observable**
+
 
 ### Schedulers
 Reactor provides some high level concepts for concurrent execution, like ExecutorService we're not dealing
@@ -694,19 +731,15 @@ Rules of thumb to consider before getting comfortable with flatMap:
    - When you have Flux&lt;Flux&lt;T&gt;&gt; you probably need flatMap.
 
 We use a simulated remote call that might return asynchronous as many events as the length of the color string
-```
+```java
     private Flux<String> simulateRemoteOperation(String color) {
-        return Flux.<String>create(subscriber -> {
-                    Runnable asyncRun = () -> {
-                        for (int i = 0; i < color.length(); i++) {
-                            subscriber.onNext(color + i);
-                            Helpers.sleepMillis(200);
-                        }
-        
-                        subscriber.onCompleted();
-                    };
-                    new Thread(asyncRun).start();
-                });
+        if("black".equals(color)) {
+            return Flux.error(new RuntimeException("Black is not a color"));
+        }
+
+        return Flux.range(0, color.length())
+                .map(it -> color + it)
+                .delayElements(Duration.of(200, ChronoUnit.MILLIS));
     }
 ```
 

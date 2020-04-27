@@ -169,7 +169,7 @@ public class Part06FlatMapOperator implements BaseTestFlux {
     /**
      * Simulated remote operation that emits as many events as the length of the color string
      * @param color color
-     * @return Flux
+     * @return Flux, error in case of 'black' color is used
      */
     private Flux<String> simulateRemoteOperation(String color) {
         if("black".equals(color)) {
