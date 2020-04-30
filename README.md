@@ -129,15 +129,15 @@ We can get a more clear picture of what is happening by calling the **log()** op
 ```
 17:54:53:755 [main] INFO 1 - onSubscribe(FluxCreate.BufferAsyncSink)
 17:54:53:757 [main] INFO 1 - request(unbounded)
-17:54:53:759 [main] INFO BaseTestFlux - Started emitting
-17:54:53:759 [main] INFO BaseTestFlux - Emitting 1st
+17:54:53:759 [main]  - Started emitting
+17:54:53:759 [main]  - Emitting 1st
 17:54:53:760 [main] INFO 1 - onNext(1)
-17:54:53:760 [main] INFO BaseTestFlux - Subscriber received: 1
-17:54:53:760 [main] INFO BaseTestFlux - Emitting 2nd
+17:54:53:760 [main]  - Subscriber received: 1
+17:54:53:760 [main]  - Emitting 2nd
 17:54:53:761 [main] INFO 1 - onNext(2)
-17:54:53:761 [main] INFO BaseTestFlux - Subscriber received: 2
+17:54:53:761 [main]  - Subscriber received: 2
 17:54:53:762 [main] INFO 1 - onComplete()
-17:54:53:762 [main] INFO BaseTestFlux - Subscriber got Completed event
+17:54:53:762 [main]  - Subscriber got Completed event
 ```
 Now we're also seeing the subscribe request being made and the request upstream signaling demand for an unlimited number of items to be published.
 the **request(unbounded)** message.
@@ -176,11 +176,11 @@ The **Mono.fromFuture** does a **subcriber.onNext(futureVal)** followed by **sub
 However if we ran this, we'd not see anything being printed. 
 
 ```
-21:45:35:321 [ForkJoinPool.commonPool-worker-1] INFO BaseTestFlux - About to sleep and return a value
+21:45:35:321 [ForkJoinPool.commonPool-worker-1]  - About to sleep and return a value
 21:45:35:481 [main] INFO 1 - | onSubscribe([Fuseable] Operators.MonoSubscriber)
 21:45:35:488 [main] INFO 1 - | request(unbounded)
 21:45:35:824 [ForkJoinPool.commonPool-worker-1] INFO 1 - | onNext(red)
-21:45:35:825 [ForkJoinPool.commonPool-worker-1] INFO BaseTestFlux - Subscriber received: red
+21:45:35:825 [ForkJoinPool.commonPool-worker-1]  - Subscriber received: red
 21:45:35:826 [ForkJoinPool.commonPool-worker-1] INFO 1 - | onComplete()
 ```
 because when we invoked **CompletableFuture.supplyAsync** our work is started in a thread of 
@@ -331,13 +331,13 @@ outputs
 ```
 16:00:32:530 [main] INFO 1 - onSubscribe(FluxCreate.BufferAsyncSink)
 16:00:32:532 [main] INFO 1 - request(unbounded)
-16:00:32:534 [main] INFO BaseTestFlux - Started emitting
-16:00:32:535 [main] INFO BaseTestFlux - Emitting 1st
+16:00:32:534 [main]  - Started emitting
+16:00:32:535 [main]  - Emitting 1st
 16:00:32:535 [main] INFO 1 - onNext(1)
 16:00:32:535 [main] INFO 1 - request(1)
-16:00:32:535 [main] INFO BaseTestFlux - Emitting 2nd
+16:00:32:535 [main]  - Emitting 2nd
 16:00:32:535 [main] INFO 1 - onNext(2)
-16:00:32:536 [main] INFO BaseTestFlux - Subscriber received: 20
+16:00:32:536 [main]  - Subscriber received: 20
 16:00:32:537 [main] INFO 1 - onComplete()
 ```
 
@@ -367,8 +367,8 @@ The subscriber then requests an unlimited number of items, from upstream.
 ```
 - First element is sent downstream and passes through the *.log()* operator 
 ```
-16:00:32:534 [main] INFO BaseTestFlux - Started emitting
-16:00:32:535 [main] INFO BaseTestFlux - Emitting 1st
+16:00:32:534 [main]  - Started emitting
+16:00:32:535 [main]  - Emitting 1st
 16:00:32:535 [main] INFO 1 - onNext(1)
 ```
 - Element reaches **.filter()** and fails condition so is not sent next on to the *.map()*. However, it meant that there was demand for elements,
@@ -390,16 +390,79 @@ Reactor provides these operators who act on signals which are helpful for debugg
  - doFinally - this is executed after the Flux terminates(completes or terminates with error).
  
 
-### delay
-Delay operator - the Thread.sleep() equivalent in the reactive world, it's pausing for a particular increment of time
+### delayElements
+Delay operator - the Thread.sleep() equivalent in the reactive world, it's delaying for a particular increment of time
 before emitting the events which are thus shifted by the specified time amount.
 
 ![delay](https://raw.githubusercontent.com/reactor/projectreactor.io/master/src/main/static/assets/img/marble/delayonnext.png)
 
-The delay operator uses a [Scheduler](#schedulers) by default, which actually means it's
-running the operators and the subscribe operations on a different thread and so the test method
-will terminate before we see the text from the log.(Not doing so would have blocked )
+```java
+log.info("Starting");
+CountDownLatch latch = new CountDownLatch(1);
 
+Flux.range(0, 5)
+          .doOnNext(val -> log.info("Emitted {}", val))
+          .delayElements(Duration.of(2, ChronoUnit.SECONDS))
+          .subscribe(
+                tick -> log.info("Tick {}", tick),
+                (ex) -> log.info("Error emitted"),
+                 () -> {
+                            log.info("Completed");
+                            latch.countDown();
+                        });
+
+latch.await();
+```
+produces
+```
+12:38:00:996 [main]  - Starting
+12:38:01:231 [main]  - Emitted 0
+12:38:01:275 [main]  - Emitted 1
+12:38:01:275 [main]  - Emitted 2
+12:38:01:275 [main]  - Emitted 3
+12:38:01:275 [main]  - Emitted 4
+12:38:03:277 [parallel-1]  - Tick 0
+12:38:05:277 [parallel-2]  - Tick 1
+12:38:07:278 [parallel-3]  - Tick 2
+12:38:09:279 [parallel-4]  - Tick 3
+12:38:11:280 [parallel-5]  - Tick 4
+12:38:11:280 [parallel-5]  - Completed
+```
+
+To make it work non blocking(cannot use _Thread.sleep()_), we can imagine the implementation to use a separate thread from a ThreadPool
+
+```java
+onNext(T val) {
+  ScheduledExecutorService.scheduleAtFixedRate (()-> { subscriber.onNext(val) }, long initialDelay, long period, TimeUnit timeunit)
+}
+```
+
+Reactor works with an abstraction above ThreadPools, the [Schedulers](#schedulers).
+
+The **delayElements()** operator uses by default a specific Scheduler, the **Scheduler.parallel()**, 
+The downstream operators and final subscriber run in this same thread from _Schedulers.parallel()_ and so the test method
+will terminate before we see the text from the log, unless we use some sort of waiting mechanism like **CountDownLatch**
+
+### delaySubscription
+Simply delays when the subscription happens.
+
+```java
+log.info("Starting");
+Flux<Integer> flux = Flux.range(0, 5)
+        .doOnSubscribe(subscription -> log.info("Subscribed"))
+        .delaySubscription(Duration.of(5, ChronoUnit.SECONDS));
+
+subscribeWithLogWaiting(flux);
+```
+produces
+```
+16:59:55:068 [main]  - Starting
+17:00:00:282 [parallel-1]  - Subscribed
+17:00:00:286 [parallel-1]  - Subscriber received: 0
+17:00:00:286 [parallel-1]  - Subscriber received: 1
+17:00:00:286 [parallel-1]  - Subscriber received: 2
+17:00:00:286 [parallel-1]  - Subscriber got Completed event
+```
 
 ### interval
 Periodically emits a number starting from 0 and then increasing the value on each emission.
@@ -632,12 +695,12 @@ subscribeWithLogWaiting(flux);
 notice the difference in time between the _'Starting'_ message. The first stream still runs but there isn't any colors arriving at the subscription for the whole time, 
 then the stream completes, which triggers subscription on the second stream.  
 ```
-08:41:18:689 [main] INFO BaseTestFlux - Starting
-08:41:25:946 [parallel-2] INFO BaseTestFlux - Subscriber received: 0
-08:41:26:943 [parallel-2] INFO BaseTestFlux - Subscriber received: 1
-08:41:27:943 [parallel-2] INFO BaseTestFlux - Subscriber received: 2
-08:41:28:943 [parallel-2] INFO BaseTestFlux - Subscriber received: 3
-08:41:28:943 [parallel-2] INFO BaseTestFlux - Subscriber got Completed event
+08:41:18:689 [main]  - Starting
+08:41:25:946 [parallel-2]  - Subscriber received: 0
+08:41:26:943 [parallel-2]  - Subscriber received: 1
+08:41:27:943 [parallel-2]  - Subscriber received: 2
+08:41:28:943 [parallel-2]  - Subscriber received: 3
+08:41:28:943 [parallel-2]  - Subscriber got Completed event
 ```
 
 ## Hot Publishers
@@ -654,12 +717,59 @@ You can use the same operators and subscribe to them, but also implementing the 
 meaning you can invoke **processor.onNext(value)** from different parts in the code,
 which means that you publish events which the Subject will pass on to their subscribers.
 
+```java
+DirectProcessor<String> hotSource = DirectProcessor.create();
+
+Flux<String> hotFlux = hotSource.map(String::toUpperCase);
+//can both subscribe
+hotFlux.subscribe(it -> log.info("Subscriber1 received:{}", it));
+
+//but also can push some events to it 
+hotSource.onNext("blue");
+hotSource.onNext("green");
+```
+
 ### DirectProcessor
-A simple Processor that keeps a list of subscribers and publishes a .
-Any late subscribers miss on events. Events must be published on the same Thread.
+A simple Processor that keeps a list of subscribers and publishes events to all subscribers.
+```java
+	@Override
+	public void onNext(T t) {
+		DirectInner<T>[] inners = subscribers;
+
+		for (DirectInner<T> s : inners) {
+			s.onNext(t);
+		}
+	}
+```
+
+Any late subscribers miss on previous events. Events must be published on the same Thread.
 
 ```java
+        DirectProcessor<String> hotSource = DirectProcessor.create();
 
+        Flux<String> hotFlux = hotSource.map(String::toUpperCase);
+
+        hotFlux.subscribe(it -> log.info("Subscriber1 received:{}", it));
+
+        hotSource.onNext("blue");
+        hotSource.onNext("green");
+
+        log.info("*** Subscribing 2nd**");
+        hotFlux.subscribe(it -> log.info("Subscriber2 received:{}", it));
+
+        hotSource.onNext("orange");
+        hotSource.onNext("purple");
+        hotSource.onComplete();
+```
+we can see how the late subscription did not receive any 
+```
+11:15:51:882 [main] INFO  - Subscriber1 received:BLUE
+11:15:51:884 [main] INFO  - Subscriber1 received:GREEN
+11:15:51:884 [main] INFO  - *** Subscribing 2nd**
+11:15:51:885 [main] INFO  - Subscriber1 received:ORANGE
+11:15:51:885 [main] INFO  - Subscriber2 received:ORANGE
+11:15:51:886 [main] INFO  - Subscriber1 received:PURPLE
+11:15:51:886 [main] INFO  - Subscriber2 received:PURPLE
 ```
 
 ### ConnectableFlux and resource sharing
@@ -677,29 +787,6 @@ Anyone who subscribes to **ConnectableObservable** is placed in a set of Subscri
 the _.create()_ code a normal Observable would when .subscribe() is called). A **.connect()** method is available for ConnectableObservable.
 **As long as connect() is not called, these Subscribers are put on hold, they never directly subscribe to upstream Observable**
 
-
-### Schedulers
-Reactor provides some high level concepts for concurrent execution, like ExecutorService we're not dealing
-with the low level constructs like creating the Threads ourselves. Instead, we're using a **Scheduler** which create
-Workers who are responsible for scheduling and running code. By default RxJava will not introduce concurrency 
-and will run the operations on the subscription thread.
-
-There are two methods through which we can introduce Schedulers into our chain of operations:
-
-   - **subscribeOn** allows specifying which Scheduler invokes the code contained in the lambda code for Observable.create()
-   - **observeOn** allows control to which Scheduler executes the code in the downstream operators
-
-RxJava provides some general use Schedulers:
- 
-  - **Schedulers.computation()** - to be used for CPU intensive tasks. A threadpool. Should not be used for tasks involving blocking IO.
-  - **Schedulers.io()** - to be used for IO bound tasks  
-  - **Schedulers.from(Executor)** - custom ExecutorService
-  - **Schedulers.newThread()** - always creates a new thread when a worker is needed. Since it's not thread pooled and 
-  always creates a new thread instead of reusing one, this scheduler is not very useful 
- 
-Although we said by default RxJava doesn't introduce concurrency, lots of operators involve waiting like **delay**,
-**interval**, **zip** need to run on a Scheduler, otherwise they would just block the subscribing thread. 
-By default **Schedulers.computation()** is used, but the Scheduler can be passed as a parameter.
 
 
 ## Flatmap operator
@@ -773,16 +860,17 @@ returns
 ```
 
 
-Notice how the results are coming intertwined. This is because flatMap actually subscribes to it's inner Flux 
-returned from 'simulateRemoteOperation'. You can specify the concurrency level of flatMap as a parameter. Meaning 
-you can say how many of the substreams should be subscribed "concurrently" - aka before the onComplete 
-event is triggered on the substreams.
+Notice how the results are coming intertwined. 
+We've first got _'orange'_, we're not getting _orange0_, _orange1_, _orange2_, _orange3_, _orange4_, _orange5_
+ 
+This is because *flatMap* actually subscribes to all it's inner Flux returned from *simulateRemoteOperation*. 
+You can specify the concurrency level of flatMap as a parameter. Meaning you can say how many of the substreams should be subscribed "concurrently" - aka before the *onComplete* event is triggered on the substreams.
 By setting the concurrency to **1** we don't subscribe to other substreams until the current one finishes:
 
 
 ```
 Flux<String> colors = Flux.just("orange", "red", "green")
-                     .flatMap(val -> simulateRemoteOperation(val), 1); //
+                     .flatMap(val -> simulateRemoteOperation(val), 1);
 
 ```
 Notice now there is a sequence from each color before the next one appears

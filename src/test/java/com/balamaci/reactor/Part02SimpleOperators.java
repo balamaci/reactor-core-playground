@@ -33,7 +33,6 @@ public class Part02SimpleOperators implements BaseTestFlux {
 
         flux
                 .log()
-                .next()
                 .map(val -> val * 10)
 //                .log(reqVal -> log.info("OnRequest {}", reqVal))
                 .filter(val -> val > 10)
@@ -45,18 +44,20 @@ public class Part02SimpleOperators implements BaseTestFlux {
     /**
      * Delay operator - the Thread.sleep of the reactive world, it's pausing for a particular increment of time
      * before emitting the events which are thus shifted by the specified time amount.
-     *
+     * <p>
      * The delay operator uses a Scheduler {@see Part07Schedulers} by default, which actually means it's
      * running the operators and the subscribe operations on a different thread, which means the test method
      * will terminate before we see the text from the log.
-     *
+     * <p>
      * To prevent this we use the CountDownLatch that we decrement on onComplete
      */
     @Test
-    public void delayOperator() {
+    public void delayElements() {
         CountDownLatch latch = new CountDownLatch(1);
 
+        log.info("Starting");
         Flux.range(0, 5)
+                .doOnNext(val -> log.info("Emitted {}", val))
                 .delayElements(Duration.of(2, ChronoUnit.SECONDS))
                 .subscribe(
                         tick -> log.info("Tick {}", tick),
@@ -69,7 +70,15 @@ public class Part02SimpleOperators implements BaseTestFlux {
         Helpers.wait(latch);
     }
 
+    @Test
+    public void delaySubscription() {
+        log.info("Starting");
+        Flux<Integer> flux = Flux.range(0, 3)
+                .doOnSubscribe(subscription -> log.info("Subscribed"))
+                .delaySubscription(Duration.of(5, ChronoUnit.SECONDS));
 
+        subscribeWithLogWaiting(flux);
+    }
 
     /**
      * Periodically emits a number starting from 0 and then increasing the value on each emission
@@ -77,19 +86,11 @@ public class Part02SimpleOperators implements BaseTestFlux {
     @Test
     public void intervalOperator() {
         log.info("Starting");
-        CountDownLatch latch = new CountDownLatch(1);
 
-        Flux.interval(Duration.of(1, ChronoUnit.SECONDS))
-                .take(5)
-                .subscribe(
-                        tick -> log.info("Tick {}", tick),
-                        (ex) -> log.info("Error emitted"),
-                        () -> {
-                            log.info("Completed");
-                            latch.countDown();
-                        });
+        Flux<Long> flux = Flux.interval(Duration.of(1, ChronoUnit.SECONDS))
+                .take(5);
 
-        Helpers.wait(latch);
+        subscribeWithLogWaiting(flux);
     }
 
     /**

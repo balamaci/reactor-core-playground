@@ -103,6 +103,13 @@ interface BaseTestFlux {
         };
     }
 
+    default <T> Consumer<? super T> logNextAndSlowByMillis(String id, int millis) {
+        return (Consumer<T>) val -> {
+            log.info("Subscriber {} received: {}", id, val);
+            Helpers.sleepMillis(millis);
+        };
+    }
+
     default Consumer<Throwable> logErrorConsumer() {
         return err -> log.error("Subscriber received error '{}'", err.getMessage());
     }
