@@ -672,7 +672,7 @@ Flux events = Flux.concat(colors, numbers);
 
 Even if the 'numbers' streams should start early, the 'colors' stream emits fully its events
 before we see any 'numbers'.
-This is because 'numbers' stream is actually subscribed only after the 'colors' complete.
+This is because 'numbers' stream is subscribed only after the 'colors' complete.
 Should the second stream be a 'hot' emitter, its events would be lost until the first one finishes,
 and the seconds stream is subscribed.
 
@@ -711,7 +711,7 @@ the events happen independently of the consumers, regardless if someone is
 listening or not, and we don't have control to request more. So you could say we have 'cold publishers' for pull
 scenarios and 'hot publishers' which push.
 
-### Processors - act
+### Processors - act as both Publisher and Subscriber
 Reactive streams specifications also mention the concept of **Procesor**s which act as both Publisher and Subscriber to help.
 You can use the same operators and subscribe to them, but also implementing the 3 methods **onNext, onError, onComplete**, 
 meaning you can invoke **processor.onNext(value)** from different parts in the code,
@@ -745,23 +745,24 @@ A simple Processor that keeps a list of subscribers and publishes events to all 
 Any late subscribers miss on previous events. Events must be published on the same Thread.
 
 ```java
-        DirectProcessor<String> hotSource = DirectProcessor.create();
+DirectProcessor<String> hotSource = DirectProcessor.create();
 
-        Flux<String> hotFlux = hotSource.map(String::toUpperCase);
+Flux<String> hotFlux = hotSource.map(String::toUpperCase);
 
-        hotFlux.subscribe(it -> log.info("Subscriber1 received:{}", it));
+hotFlux.subscribe(it -> log.info("Subscriber1 received:{}", it));
 
-        hotSource.onNext("blue");
-        hotSource.onNext("green");
+hotSource.onNext("blue");
+hotSource.onNext("green");
 
-        log.info("*** Subscribing 2nd**");
-        hotFlux.subscribe(it -> log.info("Subscriber2 received:{}", it));
+log.info("*** Subscribing 2nd**");
+hotFlux.subscribe(it -> log.info("Subscriber2 received:{}", it));
 
-        hotSource.onNext("orange");
-        hotSource.onNext("purple");
-        hotSource.onComplete();
+hotSource.onNext("orange");
+hotSource.onNext("purple");
+hotSource.onComplete();
 ```
-we can see how the late subscription did not receive any 
+
+we can see how the late subscription did not receive the events that were published before its subscription - the blue, green 
 ```
 11:15:51:882 [main] INFO  - Subscriber1 received:BLUE
 11:15:51:884 [main] INFO  - Subscriber1 received:GREEN
@@ -776,15 +777,15 @@ we can see how the late subscription did not receive any
 There are cases when we want to share a single subscription between subscribers, meaning while the code that executes
 on subscribing should be executed once, the events should be published to all subscribers.     
 
-For ex. when we want to share a connection between multiple Observables / Flowables. 
-Using a plain Publisher would just reexecute the code inside _.create()_ and opening / closing a new connection for each 
+For ex. when we want to share a connection between multiple subscriptions of the same Flux. 
+Using a plain Flux would just reexecute the code inside _.create()_ and opening / closing a new connection for each 
 new subscriber when it subscribes / cancels its subscription.
 
-**ConnectableFlux** are a special kind of **Publisher**. No matter how many Subscribers subscribe to ConnectableObservable, 
+**ConnectableFlux** is a special kind of **Publisher**. No matter how many Subscribers subscribe to **ConnectableFlux**, 
 it opens just one subscription to the Observable from which it was created.
 
-Anyone who subscribes to **ConnectableObservable** is placed in a set of Subscribers(it doesn't trigger
-the _.create()_ code a normal Observable would when .subscribe() is called). A **.connect()** method is available for ConnectableObservable.
+Anyone who subscribes to **ConnectableFlux** is placed in a set of Subscribers(it doesn't trigger
+the _.create()_ code a normal Flux would, when _.subscribe()_ is called). A **.connect()** method is available for ConnectableObservable.
 **As long as connect() is not called, these Subscribers are put on hold, they never directly subscribe to upstream Observable**
 
 
