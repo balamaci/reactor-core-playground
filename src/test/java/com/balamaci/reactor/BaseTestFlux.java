@@ -96,6 +96,10 @@ interface BaseTestFlux {
         return (Consumer<T>) val -> log.info("Subscriber received: {}", val);
     }
 
+    default <T> Consumer<? super T> logNext(String subscriberName) {
+        return (Consumer<T>) val -> log.info("Subscriber{} received: {}", subscriberName, val);
+    }
+
     default <T> Consumer<? super T> logNextAndSlowByMillis(int millis) {
         return (Consumer<T>) val -> {
             log.info("Subscriber received: {}", val);

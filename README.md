@@ -124,7 +124,7 @@ Using **Flux.create** to handle the actual emissions of events with the events l
 When subscribing to the Flux with flux.subscribe(...) the lambda code inside **create()** gets executed.
 Flux.subscribe(...) can take 3 handlers for each type of event - **onNext, onError** and **onComplete**.
 
-We can get a more clear picture of what is happening by calling the **log()** operator: 
+We can get a more clear picture of what is happening by adding the **log()** operator: 
 
 ```
 17:54:53:755 [main] INFO 1 - onSubscribe(FluxCreate.BufferAsyncSink)
@@ -201,16 +201,16 @@ We could, wait for the value to arrive onSubscribe using a CountdownLatch:
         latch.await();
 ```
 
-However, reactor provides for us some helper methods already: **mono.block()** which blocks the current 
+Reactor provides for us some helper methods already: **mono.block()** which blocks the current thread
 ```java
         Mono<String> mono = Mono.fromFuture(completableFuture);
         mono
                 .log()
                 .subscribe(val -> log.info("Subscriber received: {}", val));
 
-        String val = mono.block(); //--block indefinitely until a onNext signal is received
+        String val = mono.block(); //--block indefinitely until a onNext signal is received, this is a new Subscription than above
 ```
-and **flux.blockFirst()** or **flux.blockLast()** if Flux instead of Mono.
+and **flux.blockFirst()** or **flux.blockLast()** if Flux instead of Mono(but we must understand those are a new Subscription).
 
 Another thing to notice is the use of **Thread.sleep()** means that the async thread is blocked for some time. The point of using Reactor is that 
 we aim for using non-blocking code as much as possible, because it means a low number of threads and context switches which translates in optimal usage of resources.
@@ -788,13 +788,68 @@ Anyone who subscribes to **ConnectableFlux** is placed in a set of Subscribers(i
 the _.create()_ code a normal Flux would, when _.subscribe()_ is called). A **.connect()** method is available for ConnectableObservable.
 **As long as connect() is not called, these Subscribers are put on hold, they never directly subscribe to upstream Observable**
 
+### Multicasting to all connected subscribers
+In some cases we'd like to publish events to all subscribers. 
 
+For ex. a stream of stock exchange prices that changes frequently and websocket consumers that subscribe to them. 
+Those on fast connection can keep up and display all the price changes, while others on slow connections will lose some price updates. 
+The source is hot, the market prices will change(tick) regardless if subscribers can process them or not.
+The **share()** operator returns a **FluxPublish** which keeps a list of its subscribers and a **Queue** to which it collects the pushed events(price ticks) from Publisher upstream to the downstream subscribers.
+
+It then tries to drain this Queue by pulling the events from the queue and pushing to each downstream Subscriber but based on the minimum request . 
+
+The exact logic is:
+```java
+//determine minimum request from downstream subscribers
+long maxRequested = Long.MAX_VALUE;
+for (PubSubInner<T> inner : a) {
+	long r = inner.requested;
+	if (r >= 0L) {
+		maxRequested = Math.min(maxRequested, r);
+	}
+}
+
+while (count < maxRequested ) {
+	queueEvent = queue.poll();
+
+    for (PubSubInner<T> inner : a) {
+        inner.onNext(queueEvent);
+    }
+    count++;
+}
+```
+
+So the fact that the draining of the queue and publishing to the downstream subscribers is dependent on the demand from subscribers,
+so a slow subscriber, and we probably don't intend this.
+In the following ex., the FAST subscriber completes close to the SLOW one, although we probably expected it to finish in 200 * 10 ms. 
+```java
+        Flux<Integer> flux = Flux.range(0, 200)
+                .delayElements(Duration.of(10, ChronoUnit.MILLIS))
+                .share();
+
+        Flux<Integer> events = flux
+                .publishOn(Schedulers.elastic(), 2);
+
+        events.subscribe((val) -> log.info("FAST Subscriber received:{}", val));
+
+        CountDownLatch latch = new CountDownLatch(1);
+        CountingConsumer<Integer> countingConsumer = new CountingConsumer<>("SLOW Subscriber");
+
+        Flux<Integer> delayedFlux = events.
+                delayElements(Duration.of(100, ChronoUnit.MILLIS));
+        delayedFlux
+                .subscribe(countingConsumer, logErrorConsumer(latch), logCompleteMethod(latch));
+
+        Helpers.wait(latch);
+```
+
+We can have as exercise to implement a correct solution, as its not a trivial task.
 
 ## Flatmap operator
-The flatMap operator is so important and has so many different uses it deserves it's own category to explain it.
+The flatMap operator is so important and has so many uses, it deserves its own category to explain it.
 
 I like to think of it as a sort of **fork-join** operation because what flatMap does is it takes individual stream items
-and maps each of them to an Observable(so it creates new Streams from each object) and then 'flattens' the events from 
+and maps each of them to an Flux(so it creates new Streams from each object) and then 'flattens' the events from 
 these Streams back as coming from a single stream.
 
 Why this looks like fork-join because for each element you can fork some jobs that keeps emitting results,
@@ -808,12 +863,12 @@ Rules of thumb to consider before getting comfortable with flatMap:
    to make a remote call that returns an Observable. For ex if you have a stream of customerIds, and downstream you
     want to work with actual Customer objects:
    ```   
-   Flux<Customer> getCustomer(Integer customerId) {..}
+   Flux<Employee> getEmployees(Integer departmentId) {..}
     ...
    
-   Flux<Integer> customerIds = Flux.of(1,2,3,4);
-   Flux<Customer> customers = customerIds
-                                   .flatMap(customerId -> getCustomer(customerId));
+   Flux<Integer> departmentIds = Flux.of(1,2,3,4);
+   Flux<Employee> employees = departmentIds
+                                   .flatMap(departmentId -> getEmployees(departmentId));
    ```
    
    - When you have Flux&lt;Flux&lt;T&gt;&gt; you probably need flatMap.
